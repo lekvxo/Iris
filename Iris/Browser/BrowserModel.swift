@@ -48,7 +48,8 @@ final class BrowserModel {
 
     func sync(from view: WKWebView) {
         url = view.url
-        title = view.title ?? "Iris"
+        // Untitled pages report "", which would save as a blank name.
+        title = view.title.flatMap { $0.isEmpty ? nil : $0 } ?? view.url?.host ?? "Iris"
         canGoBack = view.canGoBack
         canGoForward = view.canGoForward
         isLoading = view.isLoading
