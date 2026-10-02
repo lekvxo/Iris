@@ -7,6 +7,7 @@ final class SettingsStore {
     let container: ModelContainer
     var permissions: [SitePermission] = []
     var persistenceError: String?
+    let blocker = BlockerController()
 
     init() {
         do {

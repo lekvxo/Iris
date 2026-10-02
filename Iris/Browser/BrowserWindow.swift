@@ -10,7 +10,7 @@ struct BrowserWindow: View {
     @SceneStorage("lastURL") private var lastURL = "https://www.google.com"
 
     var body: some View {
-        WebView(model: model, initialURL: initialURL ?? URL(string: lastURL) ?? URL(string: "https://www.google.com")!)
+        WebView(model: model, initialURL: initialURL ?? URL(string: lastURL) ?? URL(string: "https://www.google.com")!, settings: settings)
             .overlay {
                 if let error = model.error {
                     ContentUnavailableView {

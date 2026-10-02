@@ -4,6 +4,7 @@ import WebKit
 struct WebView: UIViewRepresentable {
     let model: BrowserModel
     let initialURL: URL
+    let settings: SettingsStore
 
     func makeCoordinator() -> Coordinator { Coordinator(model: model) }
 
@@ -24,7 +25,13 @@ struct WebView: UIViewRepresentable {
         view.uiDelegate = context.coordinator
         model.webView = view
         context.coordinator.observe(view)
-        model.load(initialURL)
+        context.coordinator.settings = settings
+        context.coordinator.initialLoad = Task { [weak view] in
+            guard let view else { return }
+            await settings.blocker.register(view, settings: settings)
+            guard !Task.isCancelled else { return }
+            model.load(initialURL)
+        }
         return view
     }
 
@@ -35,6 +42,8 @@ struct WebView: UIViewRepresentable {
 
     static func dismantleUIView(_ view: WKWebView, coordinator: Coordinator) {
         view.stopLoading()
+        coordinator.initialLoad?.cancel()
+        coordinator.settings?.blocker.unregister(view)
         view.navigationDelegate = nil
         view.uiDelegate = nil
         view.configuration.userContentController.removeScriptMessageHandler(forName: "irisGesture", contentWorld: .defaultClient)
@@ -45,6 +54,8 @@ struct WebView: UIViewRepresentable {
     @MainActor final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         let model: BrowserModel
         var observations: [NSKeyValueObservation] = []
+        weak var settings: SettingsStore?
+        var initialLoad: Task<Void, Never>?
         private var permittedStart = false
         private weak var permittedNavigation: WKNavigation?
         init(model: BrowserModel) { self.model = model }
