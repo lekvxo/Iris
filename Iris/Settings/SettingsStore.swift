@@ -50,7 +50,7 @@ final class SettingsStore {
         }
         permission.blockingDisabled.toggle()
         save()
-        blocker.applyToAll(reload: true)
+        blocker.applyToAll(reload: true, onlySite: domain)
     }
 
     func allowNavigation(on domain: String, allow: Bool) {

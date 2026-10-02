@@ -13,8 +13,11 @@ final class BlockerController {
     @ObservationIgnored private var startup: Task<Void, Never>?
     @ObservationIgnored private weak var settings: SettingsStore?
     @ObservationIgnored private var views: [WeakView] = []
+    @ObservationIgnored private var revision = 0
     private final class WeakView {
         weak var view: WKWebView?
+        var enabled: Bool?
+        var revision = -1
         init(_ view: WKWebView) { self.view = view }
     }
 
@@ -64,6 +67,7 @@ final class BlockerController {
         }
         guard !resolved.isEmpty else { return false }
         lists = resolved
+        revision += 1
         lastUpdated = manifest.updatedAt
         ruleCount = manifest.ruleCount
         isReady = true
@@ -72,17 +76,24 @@ final class BlockerController {
     }
 
     func apply(to view: WKWebView, destination: URL?) {
+        let enabled = settings?.blockingActive(for: destination) != false
+        if let entry = views.first(where: { $0.view === view }) {
+            if entry.enabled == enabled, entry.revision == revision { return }
+            entry.enabled = enabled
+            entry.revision = revision
+        }
         view.configuration.userContentController.removeAllContentRuleLists()
-        guard settings?.blockingActive(for: destination) != false else { return }
+        guard enabled else { return }
         for list in lists { view.configuration.userContentController.add(list) }
     }
 
-    func applyToAll(reload: Bool = false) {
+    func applyToAll(reload: Bool = false, onlySite: String? = nil) {
         views.removeAll { $0.view == nil }
         for item in views {
             if let view = item.view {
                 apply(to: view, destination: view.url)
-                if reload, view.url != nil { view.reload() }
+                let site = view.url?.host.map(PublicSuffix.bundled.registrableDomain)
+                if reload, view.url != nil, onlySite == nil || onlySite == site { view.reload() }
             }
         }
     }
