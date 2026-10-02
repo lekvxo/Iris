@@ -21,6 +21,7 @@ struct BrowserWindow: View {
                 }
             }
             .ornament(attachmentAnchor: .scene(.top)) {
+                VStack(spacing: 6) {
                 HStack(spacing: 8) {
                     tool("Back", "chevron.left", disabled: !model.canGoBack) { model.webView?.goBack() }
                     tool("Forward", "chevron.right", disabled: !model.canGoForward) { model.webView?.goForward() }
@@ -36,6 +37,24 @@ struct BrowserWindow: View {
                 }
                 .padding(12)
                 .glassBackgroundEffect()
+                if let blocked = model.blocked {
+                    HStack {
+                        Text("Blocked \(blocked.popup ? "popup" : "redirect") to \(blocked.url.host ?? "website")")
+                            .lineLimit(1)
+                        Button("Open once") {
+                            model.blocked = nil
+                            if blocked.popup { model.openWindow?(blocked.url) } else { model.load(blocked.url) }
+                        }.hoverEffect()
+                        Button("Always allow on this site") {
+                            model.allowedSites.insert(blocked.sourceSite)
+                            model.blocked = nil
+                            if blocked.popup { model.openWindow?(blocked.url) } else { model.load(blocked.url) }
+                        }.hoverEffect().disabled(blocked.sourceSite.isEmpty)
+                        Button("Dismiss", systemImage: "xmark") { model.blocked = nil }
+                            .labelStyle(.iconOnly).hoverEffect()
+                    }.padding(10).glassBackgroundEffect()
+                }
+                }
             }
             .onChange(of: model.url) { _, url in
                 address = url?.absoluteString ?? ""
