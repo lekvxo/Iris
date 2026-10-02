@@ -18,6 +18,8 @@ final class BrowserModel {
     @ObservationIgnored var serverRedirectDestination: URL?
     var blocked: BlockedNavigation?
     var allowedSites: Set<String> = []
+    var video: VideoCandidate?
+    var videoError: String?
 
     func load(_ url: URL) {
         error = nil

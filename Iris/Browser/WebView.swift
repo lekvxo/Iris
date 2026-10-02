@@ -19,6 +19,9 @@ struct WebView: UIViewRepresentable {
         configuration.userContentController.addUserScript(WKUserScript(
             source: ScriptSource.read("GestureProbe"), injectionTime: .atDocumentStart,
             forMainFrameOnly: true, in: .defaultClient))
+        configuration.userContentController.add(context.coordinator, name: "irisVideo")
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: ScriptSource.read("VideoProbe"), injectionTime: .atDocumentEnd, forMainFrameOnly: false))
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.allowsBackForwardNavigationGestures = true
         view.navigationDelegate = context.coordinator
@@ -47,6 +50,7 @@ struct WebView: UIViewRepresentable {
         view.navigationDelegate = nil
         view.uiDelegate = nil
         view.configuration.userContentController.removeScriptMessageHandler(forName: "irisGesture", contentWorld: .defaultClient)
+        view.configuration.userContentController.removeScriptMessageHandler(forName: "irisVideo")
         coordinator.observations.removeAll()
         coordinator.model.webView = nil
     }
@@ -61,6 +65,14 @@ struct WebView: UIViewRepresentable {
         init(model: BrowserModel) { self.model = model }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "irisVideo", let body = message.body as? [String: Any],
+               let id = body["id"] as? String, let src = body["src"] as? String {
+                let video = VideoDescriptor(id: id, source: src, manifest: body["manifest"] as? String,
+                    time: body["time"] as? Double ?? 0, duration: body["duration"] as? Double,
+                    drm: body["drm"] as? Bool ?? false, nativeFullscreen: body["nativeFullscreen"] as? Bool ?? false)
+                model.video = VideoCandidate(descriptor: video, frame: message.frameInfo)
+                return
+            }
             guard message.name == "irisGesture", message.frameInfo.isMainFrame,
                   let body = message.body as? [String: Any] else { return }
             model.lastLink = (body["href"] as? String).flatMap(URL.init(string:))
@@ -130,6 +142,8 @@ struct WebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            model.video = nil
+            model.videoError = nil
             permittedNavigation = permittedStart ? navigation : nil
             permittedStart = false
             model.lastLink = nil
