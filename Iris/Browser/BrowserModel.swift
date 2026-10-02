@@ -20,6 +20,14 @@ final class BrowserModel {
     var allowedSites: Set<String> = []
     var video: VideoCandidate?
     var videoError: String?
+    var isPreparingVideo = false
+
+    func watchReason(native: Bool) -> String? {
+        guard let video else { return "Play a video on the page to detect it" }
+        if native { return video.descriptor.nativeFullscreen ? nil : "This video has no website fullscreen control" }
+        if case .unsupported(let reason) = VideoBridge.classify(video.descriptor) { return reason }
+        return nil
+    }
 
     func load(_ url: URL) {
         error = nil
