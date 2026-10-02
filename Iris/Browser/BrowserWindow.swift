@@ -12,6 +12,9 @@ struct BrowserWindow: View {
     var body: some View {
         WebView(model: model, initialURL: initialURL ?? URL(string: lastURL) ?? URL(string: "https://www.google.com")!, settings: settings)
             .overlay {
+                if settings.blocker.isUpdating && !settings.blocker.isReady && model.url == nil {
+                    ProgressView("Preparing content blocking…").padding(24).glassBackgroundEffect()
+                }
                 if let error = model.error {
                     ContentUnavailableView {
                         Label("Unable to load page", systemImage: "wifi.exclamationmark")

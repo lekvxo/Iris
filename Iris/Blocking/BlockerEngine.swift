@@ -45,13 +45,10 @@ actor BlockerEngine {
         // Repeat exception/control rules in every input chunk so exceptions from
         // Unbreak can affect blocks from EasyList and other lists.
         let controls = rules.filter { $0.hasPrefix("@@") || $0.contains("#@#") || $0.contains("#@$#") || $0.contains("$badfilter") }
-        let blocks = rules.filter { !$0.hasPrefix("!") && !$0.hasPrefix("[") && !controls.contains($0) }
         var output: [String] = []
         var count = 0
         let controlSet = Set(controls)
-        // Membership checks above are replaced by a set for large lists below.
         let input = rules.filter { !$0.hasPrefix("!") && !$0.hasPrefix("[") && !controlSet.contains($0) }
-        _ = blocks
         for offset in stride(from: 0, to: input.count, by: chunkSize) {
             let slice = Array(input[offset..<min(input.count, offset + chunkSize)])
             let result = try convertChunk(slice, controls: controls)
