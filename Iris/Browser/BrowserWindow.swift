@@ -15,8 +15,8 @@ struct BrowserWindow: View {
                     tool(model.isLoading ? "Stop" : "Reload", model.isLoading ? "xmark" : "arrow.clockwise") {
                         if model.isLoading { model.webView?.stopLoading() } else { model.webView?.reload() }
                     }
-                    TextField("Search or enter a website", text: $address)
-                        .frame(width: 420)
+                    AddressField(text: $address) { model.load(InputRouter.destination(for: address)) }
+                        .frame(width: 420, height: 44)
                     tool("Save", "star", disabled: true) {}
                     tool("Saved sites", "book", disabled: true) {}
                     tool("Watch in Player", "play.rectangle", disabled: true) {}
