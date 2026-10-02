@@ -48,6 +48,18 @@ struct SettingsView: View {
                     }.disabled(settings.blocker.isUpdating).hoverEffect()
                     if let status = settings.blocker.status { Text(status).foregroundStyle(.orange) }
                 }
+                Section("Blocking turned off") {
+                    if settings.blockingOffSites.isEmpty { Text("Blocking is on for every site") }
+                    ForEach(settings.permissions.filter(\.blockingDisabled), id: \.domain) { permission in
+                        HStack {
+                            Text(permission.domain)
+                            Spacer()
+                            Button("Turn on") { settings.setBlockingDisabled(false, on: permission.domain) }.hoverEffect()
+                        }
+                    }
+                    Text("Use the shield in the toolbar to turn blocking off for the site you are on.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 Section("Allow popups and redirects") {
                     if settings.navigationSites.isEmpty { Text("No site exceptions") }
                     ForEach(settings.permissions.filter(\.allowsNavigation), id: \.domain) { permission in

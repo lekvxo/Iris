@@ -47,25 +47,27 @@ final class SettingsStore {
     func toggleBlocking(for url: URL?) {
         guard let host = url?.host else { return }
         let domain = PublicSuffix.bundled.registrableDomain(host)
-        let permission = permissions.first { $0.domain == domain } ?? SitePermission(domain: domain)
-        if !permissions.contains(where: { $0 === permission }) {
-            container.mainContext.insert(permission)
-            permissions.append(permission)
-        }
-        permission.blockingDisabled.toggle()
+        setBlockingDisabled(!blockingOffSites.contains(domain), on: domain)
+    }
+
+    func setBlockingDisabled(_ disabled: Bool, on domain: String) {
+        permission(for: domain).blockingDisabled = disabled
         save()
         blocker.applyToAll(reload: true, onlySite: domain)
     }
 
     func allowNavigation(on domain: String, allow: Bool) {
         guard !domain.isEmpty else { return }
-        let permission = permissions.first { $0.domain == domain } ?? SitePermission(domain: domain)
-        if !permissions.contains(where: { $0 === permission }) {
-            container.mainContext.insert(permission)
-            permissions.append(permission)
-        }
-        permission.allowsNavigation = allow
+        permission(for: domain).allowsNavigation = allow
         save()
+    }
+
+    private func permission(for domain: String) -> SitePermission {
+        if let existing = permissions.first(where: { $0.domain == domain }) { return existing }
+        let permission = SitePermission(domain: domain)
+        container.mainContext.insert(permission)
+        permissions.append(permission)
+        return permission
     }
 
     // Removes a saved site and its offline copy. Returns an error message on failure.
