@@ -20,6 +20,20 @@ struct BrowserWindow: View {
     }
 
     var body: some View {
+        ZStack {
+            browser
+                .opacity(model.playerSession == nil ? 1 : 0)
+                .allowsHitTesting(model.playerSession == nil)
+                .accessibilityHidden(model.playerSession != nil)
+            if let session = model.playerSession {
+                PlayerScreen(session: session) { Task { await model.closePlayer() } }
+                    .id(session.id)
+            }
+        }
+    }
+
+    // Keep WebKit mounted while AVKit owns the window, preserving history and page state.
+    private var browser: some View {
         // A restored window resumes where the user left it, not at the link that opened it.
         WebView(model: model, initialURL: lastURL.flatMap(URL.init(string:)) ?? initialURL ?? URL(string: "https://www.google.com")!, settings: settings)
             .overlay {
@@ -74,7 +88,7 @@ struct BrowserWindow: View {
                 }
                 .padding(.top, 12)
             }
-            .ornament(attachmentAnchor: .scene(.top), contentAlignment: .bottom) {
+            .ornament(visibility: model.playerSession == nil ? .visible : .hidden, attachmentAnchor: .scene(.top), contentAlignment: .bottom) {
                 HStack(spacing: 8) {
                     tool("Back", "chevron.left", disabled: !model.canGoBack) { model.webView?.goBack() }
                     tool("Forward", "chevron.right", disabled: !model.canGoForward) { model.webView?.goForward() }
@@ -152,13 +166,7 @@ struct BrowserWindow: View {
             }
             .onChange(of: settings.navigationSites) { _, sites in model.allowedSites = sites }
             .sheet(isPresented: $showingSettings) { SettingsView() }
-            .fullScreenCover(isPresented: Binding(get: { model.playerSession != nil }, set: { visible in
-                if !visible { Task { await model.closePlayer() } }
-            })) {
-                if let session = model.playerSession {
-                    PlayerScreen(session: session) { Task { await model.closePlayer() } }
-                }
-            }
+
     }
 
     private var currentSavedSite: SavedSite? {

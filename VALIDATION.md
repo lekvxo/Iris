@@ -49,3 +49,7 @@ Headset checks for these fixes: the same new-tab link twice gives two windows; a
 Simulator WebKit emits process-suspension diagnostics when fixture windows close; these are runtime system logs, not compiler warnings or failed tests.
 
 Pending: signing with Max's team and every headset check in PLAN.md §7. Native fullscreen behavior, environments/docking, real playback/time continuity, gaze/pinch, Wi-Fi-off archives and four-window smoothness cannot be certified by these unit tests. No Phase 0 spike result has been invented.
+
+## Local hardening — October 1, 2026
+
+H1: AVKit playback now occupies the browser window's root content instead of a full-screen modal. The hidden WebKit view remains mounted, with hit testing and accessibility disabled and its ornament hidden, preserving its document/history for the return. Xcode 27 simulator build passed without warnings; 29 tests ran, 28 passed and the optional live filter test skipped. Environments, docking and return continuity still require headset checks (§7 video).
