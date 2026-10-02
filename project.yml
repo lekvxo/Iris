@@ -22,6 +22,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Iris/Info.plist
         TARGETED_DEVICE_FAMILY: '7'
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - package: SafariConverterLib
         product: ContentBlockerConverter
