@@ -15,7 +15,7 @@ let package = Package(name: "SnapshotTool", platforms: [.macOS(.v14)],
         .product(name: "ContentBlockerConverter", package: "SafariConverterLib")
     ])])
 EOF
-for IRIS_FILE in BlockerEngine FilterLists BundledBlocker; do
+for IRIS_FILE in BlockerEngine FilterLists BundledBlocker YouTubeRuleStore YouTubeRuleAdapter; do
     cp "Iris/Blocking/$IRIS_FILE.swift" "$IRIS_TOOL/Sources/SnapshotTool/"
 done
 cp Scripts/FilterSnapshot.swift "$IRIS_TOOL/Sources/SnapshotTool/"

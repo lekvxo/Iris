@@ -17,8 +17,10 @@ targets:
     platform: visionOS
     sources:
       - path: Iris
-        excludes: [Resources/BlockingSnapshot]
+        excludes: [Resources/BlockingSnapshot, Resources/YouTubeScriptlets]
       - path: Iris/Resources/BlockingSnapshot
+        type: folder
+      - path: Iris/Resources/YouTubeScriptlets
         type: folder
     settings:
       base:

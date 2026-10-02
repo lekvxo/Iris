@@ -16,11 +16,19 @@ History/reload and explicit Iris loads also remain allowed. A real tapped link a
 
 Validation: warning-free Xcode 27 / visionOS 27 simulator build; all 50 local tests passed, optional live-download check skipped. Existing policy tests cover forms, server redirects, sign-in hosts, stored permissions, subframe denial and popup gesture boundaries. Real WebKit fixtures exercise scripted popup/redirect denial. Their console output includes destination, source and reason. Result: `build/Logs/Test/Test-Iris-2026.10.02_12-47-43--0700.xcresult`.
 
-## Task 4: YouTube scriptlet evaluation — awaiting approval
+## Task 4: approved YouTube-only pilot
 
-**Recommendation:** a YouTube-only pilot of the maintained scriptlet path, with compatibility fixtures before enabling it. Keep global advanced conversion disabled until that pilot works. This requires approval to bundle AdGuard's JavaScript scriptlet runtime in addition to the existing Swift package, and to adapt its runner to WKWebView. No YouTube script or advanced runtime has been added to Iris.
+Max approved the maintained-scriptlet pilot with a license report, a separate default-on toggle, pinned runtime, per-load logging and parsing/alias tests. The GPL-3.0 finding and future closed-source App Store licensing requirement were reported before bundling; provenance, full source and notices are retained (see THIRD_PARTY.md). Global advanced conversion remains disabled.
 
-### Why the switch is off
+The implemented adapter selects only YouTube source scriptlets through the existing FilterEngine, preserves its exceptions and explicitly maps the two reviewed trusted aliases. It serializes source arguments safely to repair the malformed XHR calls described below. The seven bundled filter sources provide offline initial rules; successful weekly/manual refreshes update rule data, never the pinned Scriptlets 2.3.1 library. Only six reviewed scriptlet names can run.
+
+Allowed main-frame YouTube navigations install a document-start page-world script before allowing the load. Both native and JavaScript host checks require youtube.com or a dot-boundary subdomain. Root-to-www redirects have a host-specific plan; unrelated pages and frames do not run the catalog. Settings → YouTube ad blocking (pilot) defaults on and reloads YouTube windows when changed; global and per-site blocking choices also apply. Each load reports invoked names, mapped runtime names and failures in the page console and OSLog (`com.max.iris`, `YouTubeScriptlets`). An invocation log does not prove that a live ad response was intercepted.
+
+The real WKWebView fixture ran all 11 desktop calls without invocation failures. Fetch and XHR ad fields were removed while video details were preserved; disabling the pilot restored the original responses, retained other user scripts and a lookalike host ran nothing. Five new tests cover both malformed regexes, escaped commas, alias restrictions, host boundaries, native exceptions, failed-refresh retention and independent toggle persistence. Full visionOS 27 suite: 55 passed, one optional network test skipped, no failures. Simulator and signed Release builds passed without build warnings.
+
+Pilot limits: main-frame YouTube only (no third-party embeds), no continuous polling or custom overlay/skip script, no stream extraction or DRM workarounds. Same-document YouTube transitions retain the current document's hooks; rule/path changes need a reload. Website changes, anti-adblock walls and live playback require actual site verification. Current site-check outcomes are in SITE_CHECK_RESULTS.md.
+
+### Original evaluation: why the global switch stays off
 
 `BlockerEngine.convertChunk` passes `advancedBlocking: false` and consumes only `safariRulesJSON`. Advanced blocking was a post-v1 stretch task in PLAN.md (P2.5). Setting the flag to true produces separate `advancedRulesText`; Iris has no storage, URL lookup, scriptlet catalog or JavaScript runner for it. WebKit content rules alone cannot execute scriptlets. There is no evidence that visionOS 27 forbids the necessary public user-script API.
 
@@ -58,4 +66,4 @@ For performance, use URL-matched hooks and existing visibility/thermal policy, w
 
 A single `YouTubeAdCleaner.js` could run only on YouTube, hide known ad overlays and click a visible, enabled Skip ad button while the player reports an ad. A throttled, visibility-aware MutationObserver would replace constant polling. Avoid seeking based only on video duration: YouTube may use the main video's timeline, risking skipping actual content. Such a script would only skip ads when a genuine skip action is available and would not promise to remove every ad or defeat anti-adblock walls. It is simpler and adds no dependency, but relies on unstable DOM selectors and has less reach than response-level scriptlets.
 
-Task 5's full testing pass waits for the selected Task 4 implementation. HEADSET_CHECKS.md prepares the comparison cases and includes first launch without a network. Simulator fixtures verify logic; headset testing is required for actual site behavior, gaze/pinch, heat, sustained smoothness and Apple environments. The current viewing experience remains the existing native window with selectable website fullscreen/AVKit handoff.
+HEADSET_CHECKS.md contains the comparison cases and includes first launch without a network. Simulator fixtures verify logic; headset testing is required for actual site behavior, gaze/pinch, heat, sustained smoothness and Apple environments. The current viewing experience remains the existing native window with selectable website fullscreen/AVKit handoff.

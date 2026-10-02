@@ -45,6 +45,7 @@ struct WebView: UIViewRepresentable {
             source: ScriptSource.read("GestureProbe"), injectionTime: .atDocumentStart,
             forMainFrameOnly: true, in: .defaultClient))
         controller.add(coordinator, name: "irisVideo")
+        controller.add(coordinator, name: "irisYouTubeScriptlets")
         controller.addUserScript(WKUserScript(
             source: ScriptSource.read("VideoProbe"), injectionTime: .atDocumentEnd, forMainFrameOnly: false))
         configuration.userContentController = controller
@@ -68,12 +69,16 @@ struct WebView: UIViewRepresentable {
         view.stopLoading()
         coordinator.initialLoad?.cancel()
         coordinator.initialLoad = nil
+        coordinator.policyTask?.cancel()
+        coordinator.policyTask = nil
+        coordinator.settings?.youtube.install(nil, in: view)
         coordinator.settings?.blocker.unregister(view)
         view.navigationDelegate = nil
         view.uiDelegate = nil
         view.configuration.userContentController.removeScriptMessageHandler(forName: "irisGesture", contentWorld: .defaultClient)
         view.configuration.userContentController.removeScriptMessageHandler(forName: "irisVideo")
         view.configuration.userContentController.removeScriptMessageHandler(forName: "irisPopup")
+        view.configuration.userContentController.removeScriptMessageHandler(forName: "irisYouTubeScriptlets")
         coordinator.observations.removeAll()
         coordinator.model.webView = nil
         coordinator.model.invalidateVideo()
@@ -87,6 +92,7 @@ struct WebView: UIViewRepresentable {
         var observations: [NSKeyValueObservation] = []
         weak var settings: SettingsStore?
         var initialLoad: Task<Void, Never>?
+        var policyTask: Task<Void, Never>?
         private var videoPolicy: String?
         private var permittedStart = false
         private weak var permittedNavigation: WKNavigation?
@@ -101,6 +107,7 @@ struct WebView: UIViewRepresentable {
         init(model: BrowserModel) { self.model = model }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "irisYouTubeScriptlets" { settings?.youtube.log(message); return }
             if message.name == "irisPopup", let body = message.body as? [String: Any],
                let value = body["url"] as? String, let url = URL(string: value),
                ["http", "https"].contains(url.scheme), url.host != nil {
@@ -223,24 +230,46 @@ struct WebView: UIViewRepresentable {
             // Subframe loads stay in their frame. New windows are checked by WKUIDelegate.
             guard let target = action.targetFrame else { decisionHandler(.allow); return }
             guard target.isMainFrame else { decisionHandler(.allow); return }
+            policyTask?.cancel()
+            policyTask = nil
             let allowed = permitted(action)
             let loadingArchive = model.nativeArchiveDestination != nil
             model.nativeArchiveDestination = nil
             if model.nativeDestination == action.request.url { model.nativeDestination = nil }
             if model.serverRedirectDestination == action.request.url { model.serverRedirectDestination = nil }
             if allowed {
-                historyPendingOfflineLoad = loadingArchive
-                if !loadingArchive { model.archiveReplay = nil }
-                settings?.blocker.apply(to: webView, destination: action.request.url)
-                permittedStart = true
-                model.blocked = nil
                 // One gesture authorizes one destination, not later timers.
                 model.lastLink = nil
-                decisionHandler(.allow)
+                if !loadingArchive, let settings, let url = action.request.url,
+                   settings.youtubeScriptletsEnabled, settings.blockingActive(for: url), YouTubeRuleAdapter.contains(url) {
+                    let document = model.documentID
+                    policyTask = Task { [weak self, weak webView] in
+                        let source = try? await settings.youtube.source(for: url, enabled: true)
+                        guard !Task.isCancelled, let self, let webView, self.model.documentID == document,
+                              webView.navigationDelegate === self else { decisionHandler(.cancel); return }
+                        let enabled = settings.youtubeScriptletsEnabled && settings.blockingActive(for: url)
+                        settings.youtube.install(enabled ? source : nil, in: webView)
+                        self.allowNavigation(webView, destination: url, archive: false, decisionHandler: decisionHandler)
+                        self.policyTask = nil
+                    }
+                } else {
+                    settings?.youtube.install(nil, in: webView)
+                    allowNavigation(webView, destination: action.request.url, archive: loadingArchive, decisionHandler: decisionHandler)
+                }
             } else {
                 if let url = action.request.url { block(url, popup: false) }
                 decisionHandler(.cancel)
             }
+        }
+
+        private func allowNavigation(_ view: WKWebView, destination: URL?, archive: Bool,
+                                     decisionHandler: @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
+            historyPendingOfflineLoad = archive
+            if !archive { model.archiveReplay = nil }
+            settings?.blocker.apply(to: view, destination: destination)
+            permittedStart = true
+            model.blocked = nil
+            decisionHandler(.allow)
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -260,6 +289,7 @@ struct WebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didReceiveServerRedirectForProvisionalNavigation navigation: WKNavigation!) {
+            if !YouTubeRuleAdapter.contains(webView.url) { settings?.youtube.install(nil, in: webView) }
             if let navigation, navigation === permittedNavigation {
                 model.serverRedirectDestination = webView.url
                 settings?.blocker.apply(to: webView, destination: webView.url)

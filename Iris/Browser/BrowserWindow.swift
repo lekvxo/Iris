@@ -98,7 +98,10 @@ struct BrowserWindow: View {
                     tool("Back", "chevron.left", disabled: !model.canGoBack) { model.webView?.goBack() }
                     tool("Forward", "chevron.right", disabled: !model.canGoForward) { model.webView?.goForward() }
                     tool(model.isLoading ? "Stop" : "Reload", model.isLoading ? "xmark" : "arrow.clockwise") {
-                        if model.isLoading { model.webView?.stopLoading() } else { Task { await model.reloadPage(settings: settings) } }
+                        if model.isLoading {
+                            (model.webView?.navigationDelegate as? WebView.Coordinator)?.policyTask?.cancel()
+                            model.webView?.stopLoading()
+                        } else { Task { await model.reloadPage(settings: settings) } }
                     }
                     AddressField(text: model.url?.absoluteString ?? "") { model.load(InputRouter.destination(for: $0)) }
                         .frame(width: 420, height: 44)

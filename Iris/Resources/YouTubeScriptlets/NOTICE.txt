@@ -1,0 +1,9 @@
+AdGuard Scriptlets 2.3.1 — GPL-3.0
+Copyright AdGuard Software Limited and contributors.
+Runtime: official @adguard/scriptlets 2.3.1 dist/scriptlets/index.js.
+Source revision: c75c18fd95de614c733d9db285fb0daa9835028b (tag v2.3.1).
+Package: https://registry.npmjs.org/@adguard/scriptlets/-/scriptlets-2.3.1.tgz
+Corresponding source: https://github.com/AdguardTeam/Scriptlets/tree/c75c18fd95de614c733d9db285fb0daa9835028b
+Complete source and exact npm package are retained in Iris's repository under Vendor/AdGuardScriptlets-2.3.1/.
+GPL text is included in LICENSE.txt. No library updates are downloaded at runtime.
+The compressed ESM file is unchanged; Iris removes its final export declaration in memory and encloses it in a private, host-guarded IIFE for WKUserScript use.

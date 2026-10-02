@@ -36,6 +36,7 @@ actor BlockerEngine {
             conversionSeconds: conversionSeconds, compilationSeconds: Date().timeIntervalSince(compileStart))
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         try JSONEncoder().encode(manifest).write(to: root.appendingPathComponent("manifest.json"), options: .atomic)
+        await YouTubeRuleStore.shared.refresh(from: rules)
         logger.info("Compiled \(manifest.ruleCount) rules in \(manifest.identifiers.count) shards; convert \(manifest.conversionSeconds)s, compile \(manifest.compilationSeconds)s")
         return manifest
     }

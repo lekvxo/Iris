@@ -12,6 +12,9 @@ struct SettingsView: View {
             Form {
                 Section("Browsing") {
                     Toggle("Ad and tracker blocking", isOn: Binding(get: { settings.blockingEnabled }, set: { settings.blockingEnabled = $0 }))
+                    Toggle("YouTube ad blocking (pilot)", isOn: Binding(get: { settings.youtubeScriptletsEnabled }, set: { settings.youtubeScriptletsEnabled = $0 }))
+                    Text("Uses bundled scriptlets on YouTube. Turning this off reloads open YouTube pages. Ad removal may vary as YouTube changes.")
+                        .font(.footnote).foregroundStyle(.secondary)
                     Button(clearingData ? "Clearing…" : "Clear website data", role: .destructive) {
                         confirmingClear = true
                     }.disabled(clearingData).hoverEffect()

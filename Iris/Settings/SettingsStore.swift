@@ -13,6 +13,13 @@ final class SettingsStore {
     var permissions: [SitePermission] = []
     var persistenceError: String?
     let blocker = BlockerController()
+    let youtube = YouTubePilot()
+    var youtubeScriptletsEnabled: Bool {
+        didSet {
+            defaults.set(youtubeScriptletsEnabled, forKey: "youtubeScriptletsEnabled")
+            blocker.applyToAll(reload: true, onlySite: "youtube.com")
+        }
+    }
     let energy: EnergyPolicy
     let archives = ArchiveStore()
     var nativeVideo = UserDefaults.standard.object(forKey: "nativeVideo") as? Bool ?? true {
@@ -27,6 +34,7 @@ final class SettingsStore {
 
     init(configuration: ModelConfiguration = ModelConfiguration(cloudKitDatabase: .none), defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        youtubeScriptletsEnabled = defaults.object(forKey: "youtubeScriptletsEnabled") as? Bool ?? true
         historyRetention = defaults.string(forKey: "historyRetention").flatMap(HistoryRetention.init(rawValue:)) ?? .year
         let controller = blocker
         energy = EnergyPolicy { [weak controller] in controller?.setWorkAllowed($0) }
