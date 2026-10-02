@@ -14,9 +14,14 @@ final class BrowserModel {
     @ObservationIgnored var openWindow: ((URL) -> Void)?
     @ObservationIgnored var lastLink: URL?
     @ObservationIgnored var lastGestureTime = Date.distantPast
+    @ObservationIgnored var nativeDestination: URL?
+    @ObservationIgnored var serverRedirectDestination: URL?
+    var blocked: BlockedNavigation?
+    var allowedSites: Set<String> = []
 
     func load(_ url: URL) {
         error = nil
+        nativeDestination = url
         webView?.load(URLRequest(url: url))
     }
 

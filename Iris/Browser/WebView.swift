@@ -42,6 +42,8 @@ struct WebView: UIViewRepresentable {
     @MainActor final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         let model: BrowserModel
         var observations: [NSKeyValueObservation] = []
+        private var permittedStart = false
+        private weak var permittedNavigation: WKNavigation?
         init(model: BrowserModel) { self.model = model }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -58,17 +60,76 @@ struct WebView: UIViewRepresentable {
             report(error)
         }
         private func report(_ error: Error) {
+            permittedNavigation = nil
+            model.serverRedirectDestination = nil
             guard (error as NSError).code != NSURLErrorCancelled else { return }
             model.error = error.localizedDescription
         }
 
         func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                      for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-            if navigationAction.navigationType == .linkActivated, navigationAction.sourceFrame.isMainFrame,
-               let url = navigationAction.request.url {
-                model.openWindow?(url)
+            if let url = navigationAction.request.url {
+                if permitted(navigationAction, popup: true) { model.openWindow?(url) }
+                else { block(url, popup: true) }
             }
             return nil
+        }
+
+        private func permitted(_ action: WKNavigationAction, popup: Bool = false) -> Bool {
+            guard let url = action.request.url else { return false }
+            return NavigationGuard(suffix: .bundled).allows(.init(
+                destination: url, current: model.url,
+                mainFrame: action.sourceFrame.isMainFrame, popup: popup,
+                linkActivated: action.navigationType == .linkActivated,
+                native: !popup && model.nativeDestination == url,
+                historyOrReload: action.navigationType == .backForward || action.navigationType == .reload,
+                form: action.navigationType == .formSubmitted || action.navigationType == .formResubmitted,
+                serverRedirect: !popup && model.serverRedirectDestination == url,
+                clickedLink: model.lastLink, gestureAge: Date().timeIntervalSince(model.lastGestureTime),
+                allowedSites: model.allowedSites))
+        }
+
+        private func block(_ url: URL, popup: Bool) {
+            model.blocked = BlockedNavigation(url: url,
+                sourceSite: model.url?.host.map(PublicSuffix.bundled.registrableDomain) ?? "", popup: popup)
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
+                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            // Subframe loads stay in their frame. New windows are checked by WKUIDelegate.
+            guard let target = action.targetFrame else { decisionHandler(.allow); return }
+            guard target.isMainFrame else { decisionHandler(.allow); return }
+            let allowed = permitted(action)
+            if model.nativeDestination == action.request.url { model.nativeDestination = nil }
+            if model.serverRedirectDestination == action.request.url { model.serverRedirectDestination = nil }
+            if allowed {
+                permittedStart = true
+                model.blocked = nil
+                // One gesture authorizes one destination, not later timers.
+                model.lastLink = nil
+                decisionHandler(.allow)
+            } else {
+                if let url = action.request.url { block(url, popup: false) }
+                decisionHandler(.cancel)
+            }
+        }
+
+        func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            permittedNavigation = permittedStart ? navigation : nil
+            permittedStart = false
+            model.lastLink = nil
+        }
+
+        func webView(_ webView: WKWebView, didReceiveServerRedirectForProvisionalNavigation navigation: WKNavigation!) {
+            if let navigation, navigation === permittedNavigation {
+                model.serverRedirectDestination = webView.url
+            }
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            permittedNavigation = nil
+            model.serverRedirectDestination = nil
+            model.lastLink = nil
         }
 
         func observe(_ view: WKWebView) {
