@@ -28,7 +28,10 @@ struct WebView: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ view: WKWebView, context: Context) {}
+    func updateUIView(_ view: WKWebView, context: Context) {
+        let site = model.url?.host.map(PublicSuffix.bundled.registrableDomain) ?? ""
+        view.configuration.preferences.javaScriptCanOpenWindowsAutomatically = model.allowedSites.contains(site)
+    }
 
     static func dismantleUIView(_ view: WKWebView, coordinator: Coordinator) {
         view.stopLoading()
