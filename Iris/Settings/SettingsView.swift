@@ -27,9 +27,20 @@ struct SettingsView: View {
                             }
                         }
                     } message: { Text("You will be signed out of every website.") }
-                    Text("Clearing data signs you out of websites. Your saved sites and offline copies are kept.")
+                    Text("Clearing data signs you out of websites. Your history, saved sites and offline copies are kept.")
                         .font(.footnote).foregroundStyle(.secondary)
                     if let dataStatus { Text(dataStatus).font(.footnote) }
+                }
+                Section {
+                    Picker("Keep history for", selection: Binding(get: { settings.historyRetention }, set: { settings.historyRetention = $0 })) {
+                        ForEach(HistoryRetention.allCases) { retention in
+                            Text(retention.title).tag(retention)
+                        }
+                    }
+                    ClearHistoryButton()
+                    if let error = settings.history.error { Text(error).foregroundStyle(.red) }
+                } header: { Text("History") } footer: {
+                    Text("Older entries are removed when Iris launches. \(ClearHistoryButton.footer)")
                 }
                 Section("Watch in Player") {
                     Toggle("Use website native fullscreen", isOn: Binding(get: { settings.nativeVideo }, set: { settings.nativeVideo = $0 }))

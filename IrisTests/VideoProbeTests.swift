@@ -39,11 +39,13 @@ import UIKit
             }, 20);
             </script></body></html>
             """, baseURL: URL(string: "https://video.example.com"))
-        for _ in 0..<100 {
+        // Cold visionOS 27 WebContent startup can exceed ten seconds.
+        for _ in 0..<450 {
             if view.title == "done" { break }
             try await Task.sleep(for: .milliseconds(100))
         }
-        XCTAssertEqual(view.title, "done")
+        let state = try await view.evaluateJavaScript("JSON.stringify({ready:document.readyState,hidden:document.hidden,title:document.title,mutations:document.querySelectorAll('#feed span').length})")
+        XCTAssertEqual(view.title, "done", "Fixture state: \(String(describing: state)); scene: \(scene.activationState.rawValue)")
         try await Task.sleep(for: .milliseconds(500))
         XCTAssertGreaterThanOrEqual(counter.count, 1, "The video must still be reported")
         XCTAssertLessThanOrEqual(counter.count, 3, "Unchanged video state must not be re-sent on every mutation")

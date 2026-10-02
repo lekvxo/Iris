@@ -82,6 +82,62 @@ final class HistoryTests: XCTestCase {
         XCTAssertEqual(sections[2].title, weekday.string(from: sections[2].id))
         XCTAssertTrue(sections[3].title.contains("2026"))
     }
+
+    @MainActor func testClearRangesIncludeTheirStartAndKeepOtherRows() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        // Yesterday was a 25-hour day: subtracting 48 hours is not a calendar boundary.
+        let now = calendar.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: 12))!
+        let hour = now.addingTimeInterval(-3600)
+        let today = calendar.startOfDay(for: now)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        let dates = [yesterday.addingTimeInterval(-1), yesterday, today.addingTimeInterval(-1), today,
+                     hour.addingTimeInterval(-1), hour, now, now.addingTimeInterval(1)]
+        let expectedRemaining: [HistoryClearRange: [Int]] = [.hour: [0, 1, 2, 3, 4, 7], .today: [0, 1, 2, 7],
+                                                           .todayAndYesterday: [0, 7], .all: []]
+        for range in HistoryClearRange.allCases {
+            let container = try memoryContainer()
+            let context = container.mainContext
+            for (index, date) in dates.enumerated() {
+                context.insert(HistoryEntry(url: URL(string: "https://example.com/\(index)")!, title: String(index), visitedAt: date))
+            }
+            try context.save()
+            let history = HistoryStore(context: context, calendar: calendar, now: { now })
+            history.clear(range)
+            XCTAssertNil(history.error)
+            let remaining = try context.fetch(FetchDescriptor<HistoryEntry>()).compactMap { Int($0.title) }.sorted()
+            XCTAssertEqual(remaining, expectedRemaining[range], range.title)
+        }
+    }
+
+    @MainActor func testRetentionKeepsBoundaryAndDefaultsToOneYear() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 3, day: 31, hour: 12))!
+        let month = calendar.date(from: DateComponents(year: 2026, month: 2, day: 28, hour: 12))!
+        let year = calendar.date(from: DateComponents(year: 2025, month: 3, day: 31, hour: 12))!
+        let dates = [year.addingTimeInterval(-1), year, month.addingTimeInterval(-1), month, now]
+        let remaining: [HistoryRetention: [Int]] = [.month: [3, 4], .year: [1, 2, 3, 4], .forever: [0, 1, 2, 3, 4]]
+        for retention in HistoryRetention.allCases {
+            let container = try memoryContainer()
+            for (index, date) in dates.enumerated() {
+                container.mainContext.insert(HistoryEntry(url: URL(string: "https://example.com/\(index)")!, title: String(index), visitedAt: date))
+            }
+            try container.mainContext.save()
+            let history = HistoryStore(context: container.mainContext, calendar: calendar, now: { now })
+            history.prune(keeping: retention)
+            XCTAssertEqual(try container.mainContext.fetch(FetchDescriptor<HistoryEntry>()).compactMap { Int($0.title) }.sorted(), remaining[retention])
+            XCTAssertNil(history.error)
+        }
+        let suite = "IrisHistoryTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(configuration: ModelConfiguration(isStoredInMemoryOnly: true), defaults: defaults)
+        XCTAssertEqual(settings.historyRetention, .year)
+        settings.historyRetention = .forever
+        let reopened = SettingsStore(configuration: ModelConfiguration(isStoredInMemoryOnly: true), defaults: defaults)
+        XCTAssertEqual(reopened.historyRetention, .forever)
+    }
     @MainActor func testAddingHistoryPreservesExistingSavedDataAndSurvivesReopening() throws {
         let directory = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

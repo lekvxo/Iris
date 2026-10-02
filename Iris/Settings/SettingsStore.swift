@@ -6,6 +6,10 @@ import Foundation
 final class SettingsStore {
     let container: ModelContainer
     let history: HistoryStore
+    private let defaults: UserDefaults
+    var historyRetention: HistoryRetention {
+        didSet { defaults.set(historyRetention.rawValue, forKey: "historyRetention") }
+    }
     var permissions: [SitePermission] = []
     var persistenceError: String?
     let blocker = BlockerController()
@@ -21,7 +25,9 @@ final class SettingsStore {
         }
     }
 
-    init(configuration: ModelConfiguration = ModelConfiguration(cloudKitDatabase: .none)) {
+    init(configuration: ModelConfiguration = ModelConfiguration(cloudKitDatabase: .none), defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        historyRetention = defaults.string(forKey: "historyRetention").flatMap(HistoryRetention.init(rawValue:)) ?? .year
         let controller = blocker
         energy = EnergyPolicy { [weak controller] in controller?.setWorkAllowed($0) }
         do {
@@ -31,6 +37,7 @@ final class SettingsStore {
             container = try ModelContainer(for: SitePermission.self, SavedSite.self, HistoryEntry.self,
                                            configurations: configuration)
             history = HistoryStore(context: container.mainContext)
+            history.prune(keeping: historyRetention)
             permissions = try container.mainContext.fetch(FetchDescriptor<SitePermission>(sortBy: [SortDescriptor(\.domain)]))
         } catch {
             fatalError("Iris could not open its saved data: \(error.localizedDescription)")

@@ -76,6 +76,28 @@ final class HistoryStore {
         }
     }
 
+    func clear(_ range: HistoryClearRange) {
+        perform {
+            let end = now()
+            if let start = range.start(now: end, calendar: calendar) {
+                try context.delete(model: HistoryEntry.self, where: #Predicate {
+                    $0.visitedAt >= start && $0.visitedAt <= end
+                })
+            } else {
+                try context.delete(model: HistoryEntry.self)
+            }
+            try context.save()
+        }
+    }
+
+    func prune(keeping retention: HistoryRetention) {
+        guard let cutoff = retention.cutoff(now: now(), calendar: calendar) else { return }
+        perform {
+            try context.delete(model: HistoryEntry.self, where: #Predicate { $0.visitedAt < cutoff })
+            try context.save()
+        }
+    }
+
     private func perform(_ action: () throws -> Void) {
         do { try action(); error = nil }
         catch { self.error = error.localizedDescription }

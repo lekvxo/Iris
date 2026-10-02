@@ -6,8 +6,15 @@ struct HistoryListView: View {
     @State private var search = ""
 
     var body: some View {
-        HistoryResults(search: search, open: open)
-            .searchable(text: $search, prompt: "Search history")
+        VStack(spacing: 0) {
+            HistoryResults(search: search, open: open)
+                .searchable(text: $search, prompt: "Search history")
+            Divider()
+            VStack(alignment: .leading, spacing: 8) {
+                ClearHistoryButton()
+                Text(ClearHistoryButton.footer).font(.footnote).foregroundStyle(.secondary)
+            }.frame(maxWidth: .infinity, alignment: .leading).padding()
+        }
     }
 }
 
