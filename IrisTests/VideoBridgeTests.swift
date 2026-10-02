@@ -1,4 +1,5 @@
 import XCTest
+import Foundation
 @testable import Iris
 
 final class VideoBridgeTests: XCTestCase {
@@ -24,5 +25,20 @@ final class VideoBridgeTests: XCTestCase {
         for source in ["file:///video.mp4", "data:video/mp4;base64,AAAA", "https://example.com/page", ""] {
             if case .playable = VideoBridge.classify(video(source)) { XCTFail("Unsupported source was accepted") }
         }
+    }
+
+    @MainActor func testCookiesStayWithinHostPathAndSecureScope() throws {
+        func cookie(_ name: String, domain: String, path: String = "/", secure: Bool = false) throws -> HTTPCookie {
+            var properties: [HTTPCookiePropertyKey: Any] = [.name: name, .value: "fixture", .domain: domain, .path: path]
+            if secure { properties[.secure] = "TRUE" }
+            return try XCTUnwrap(HTTPCookie(properties: properties))
+        }
+        let cookies = try [cookie("host", domain: "cdn.example.com"), cookie("domain", domain: ".example.com"),
+            cookie("other", domain: ".evil.test"), cookie("path", domain: ".example.com", path: "/private"),
+            cookie("secure", domain: ".example.com", secure: true)]
+        XCTAssertEqual(Set(BrowserModel.cookies(cookies, for: URL(string: "https://cdn.example.com/video.mp4")!).map(\.name)), ["host", "domain", "secure"])
+        XCTAssertEqual(Set(BrowserModel.cookies(cookies, for: URL(string: "http://cdn.example.com/video.mp4")!).map(\.name)), ["host", "domain"])
+        XCTAssertTrue(BrowserModel.cookies(cookies, for: URL(string: "https://example.com.evil.test/video.mp4")!).allSatisfy { $0.name == "other" })
+        XCTAssertFalse(BrowserModel.cookies(cookies, for: URL(string: "https://cdn.example.com/private-copy/video.mp4")!).contains { $0.name == "path" })
     }
 }

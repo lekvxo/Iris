@@ -16,7 +16,7 @@ final class PlayerSession: Identifiable {
         self.candidate = candidate
         self.wasPlaying = wasPlaying
         self.pageURL = pageURL
-        observation = player.currentItem?.observe(\.status, options: [.new]) { [weak self] item, _ in
+        observation = player.currentItem?.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
             let failure = item.status == .failed ? item.error?.localizedDescription ?? "Playback failed" : nil
             Task { @MainActor [weak self] in self?.error = failure }
         }
