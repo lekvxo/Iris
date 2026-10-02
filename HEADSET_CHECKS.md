@@ -2,9 +2,11 @@
 
 H1–H4, Phase 6 history, bundled offline blocking, navigation logging and the approved YouTube-only scriptlet pilot are implemented and tested on the visionOS 27 simulator (55 local tests passed; one optional live-download check skipped). The latest signed Release build passed with Xcode 27 and includes the pilot. The paired headset currently reports unavailable; this build has not been installed on it. H5's sustained measurement and live site checks remain pending. No headset performance, temperature or environment result is claimed. See SITE_CHECK_RESULTS.md for completed checks and blockers.
 
-Unlock and wear the paired headset, then install `/tmp/iris-headset-build/Build/Products/Release-xros/Iris.app` from Xcode or with `xcrun devicectl device install app --device 00008112-000C31EC2681A01E /tmp/iris-headset-build/Build/Products/Release-xros/Iris.app`. Keep `project.yml` as the source of truth; replace `YOUR_TEAM_ID` at `settings.base.DEVELOPMENT_TEAM` for future signed builds, or supply the team as a build-command override. This session's override was `F47GC3BYK3`.
+Unlock and wear the paired headset, then install `build/Headset/Build/Products/Release-xros/Iris.app` from Xcode or, from the repository root, with `xcrun devicectl device install app --device 00008112-000C31EC2681A01E build/Headset/Build/Products/Release-xros/Iris.app`. This signed build includes the frosted glacier icon. Keep `project.yml` as the source of truth; replace `YOUR_TEAM_ID` at `settings.base.DEVELOPMENT_TEAM` for future signed builds, or supply the team as a build-command override. This session's override was `F47GC3BYK3`.
 
 One checklist, following §7's order:
+
+- [ ] Icon: Home View shows the frosted glacier aperture. Gaze at it and move your head: the glass layer has depth, stays centered and does not clip or show the old eye artwork.
 
 - [ ] §7.1: On 2–3 anime streaming sites you use (record each URL), test blank-area taps, Play and server-selection buttons: no unwanted popup or cross-site jump. Start without Always allow permissions; compare shield on/off and confirm the navigation guard remains active in both. Check the console's blocked URL, source page and reason.
 - [ ] §7.2: Real cross-site links work; Google sign-in completes and its popup closes itself.

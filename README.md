@@ -31,4 +31,4 @@ Watch requires a tap. Settings → **Use website native fullscreen** chooses the
 - The isolated gesture probe records trusted link destinations before page click handlers run. A separate page-world popup bridge reports blocked attempts and never authorizes navigation. Same-site navigation, submitted forms and the specified sign-in hosts retain the plan's exceptions.
 - Four-window ownership/release is tested; real smoothness, gaze/pinch, player environments and offline operation with Wi-Fi off require headset testing.
 
-Filter URLs, licenses and API references are recorded in `THIRD_PARTY.md`. Icon source is `Scripts/generate-icon.swift`; it generates three 1024×1024 layers using Core Graphics.
+Filter URLs, licenses and API references are recorded in `THIRD_PARTY.md`. The approved frosted glacier icon and its source layers live in `Design/Icon/`. Run `swift Scripts/generate-icon.swift` from the repository root to prepare two 1024×1024 visionOS layers and a circular preview; it preserves the generated artwork rather than recreating the old eye icon.
