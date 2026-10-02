@@ -13,6 +13,7 @@ struct WebView: UIViewRepresentable {
         configuration.websiteDataStore = .default()
         configuration.allowsInlineMediaPlayback = true
         configuration.preferences.isElementFullscreenEnabled = true
+        configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.allowsBackForwardNavigationGestures = true
         view.navigationDelegate = context.coordinator
@@ -51,7 +52,10 @@ struct WebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                      for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-            if let url = navigationAction.request.url { model.openWindow?(url) }
+            if navigationAction.navigationType == .linkActivated, navigationAction.sourceFrame.isMainFrame,
+               let url = navigationAction.request.url {
+                model.openWindow?(url)
+            }
             return nil
         }
 
