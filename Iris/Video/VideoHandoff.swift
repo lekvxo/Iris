@@ -2,6 +2,24 @@ import AVFoundation
 import WebKit
 
 extension BrowserModel {
+    func enterNativeFullscreen() async {
+        guard !isPreparingVideo, let candidate = video, let view = webView else { return }
+        isPreparingVideo = true
+        videoError = nil
+        defer { isPreparingVideo = false }
+        do {
+            _ = try await view.callAsyncJavaScript("""
+                const v = [...document.querySelectorAll('video')].find(v => v.dataset.irisVideo === id);
+                if (!v) throw new Error('Video is no longer on this page');
+                if (typeof v.webkitEnterFullscreen === 'function') v.webkitEnterFullscreen();
+                else if (typeof v.requestFullscreen === 'function') await v.requestFullscreen();
+                else throw new Error('No fullscreen API');
+                """, arguments: ["id": candidate.descriptor.id], in: candidate.frame, contentWorld: .page)
+        } catch {
+            videoError = "Use the video's fullscreen control on the page. \(error.localizedDescription)"
+        }
+    }
+
     func closePlayer() async {
         guard let session = playerSession else { return }
         session.player.pause()

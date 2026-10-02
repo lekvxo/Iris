@@ -8,6 +8,9 @@ final class SettingsStore {
     var permissions: [SitePermission] = []
     var persistenceError: String?
     let blocker = BlockerController()
+    var nativeVideo = UserDefaults.standard.object(forKey: "nativeVideo") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(nativeVideo, forKey: "nativeVideo") }
+    }
     var blockingEnabled = UserDefaults.standard.object(forKey: "blockingEnabled") as? Bool ?? true {
         didSet {
             UserDefaults.standard.set(blockingEnabled, forKey: "blockingEnabled")

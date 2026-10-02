@@ -38,8 +38,11 @@ struct BrowserWindow: View {
                     tool("Save", "star", disabled: true) {}
                     tool("Saved sites", "book", disabled: true) {}
                     tool("Watch in Player", "play.rectangle",
-                         disabled: model.isPreparingVideo || model.watchReason(native: false) != nil) {
-                        Task { await model.prepareHandoff() }
+                         disabled: model.isPreparingVideo || model.watchReason(native: settings.nativeVideo) != nil) {
+                        Task {
+                            if settings.nativeVideo { await model.enterNativeFullscreen() }
+                            else { await model.prepareHandoff() }
+                        }
                     }
                     tool(settings.blockingActive(for: model.url) ? "Blocking on" : "Blocking off",
                          settings.blockingActive(for: model.url) ? "shield.fill" : "shield.slash",
@@ -50,8 +53,10 @@ struct BrowserWindow: View {
                 }
                 .padding(12)
                 .glassBackgroundEffect()
-                if let reason = model.videoError ?? model.watchReason(native: false), model.video != nil {
+                if let reason = model.videoError ?? model.watchReason(native: settings.nativeVideo), model.video != nil {
                     Text(reason).font(.caption).padding(8).glassBackgroundEffect()
+                } else if settings.nativeVideo, model.video?.descriptor.drm == true {
+                    Text("Protected video uses website fullscreen").font(.caption).padding(8).glassBackgroundEffect()
                 }
                 if let blocked = model.blocked {
                     HStack {

@@ -6,6 +6,13 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Watch in Player") {
+                    Toggle("Use website native fullscreen", isOn: Binding(get: { settings.nativeVideo }, set: { settings.nativeVideo = $0 }))
+                    Text(settings.nativeVideo
+                         ? "Requests fullscreen on the detected video, including website streams. Headset testing determines which player and environments the website offers."
+                         : "Hands direct MP4 and HLS sources to Apple's player. Protected videos and streams without an observed HLS source stay on the website.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 Section("Filter lists") {
                     if let date = settings.blocker.lastUpdated {
                         LabeledContent("Last updated", value: date.formatted(date: .abbreviated, time: .shortened))
