@@ -47,5 +47,17 @@ import UIKit
         try await Task.sleep(for: .milliseconds(500))
         XCTAssertGreaterThanOrEqual(counter.count, 1, "The video must still be reported")
         XCTAssertLessThanOrEqual(counter.count, 3, "Unchanged video state must not be re-sent on every mutation")
+        _ = try await view.evaluateJavaScript("window.postMessage({type:'iris-video-policy',enabled:false,interval:250}, '*')")
+        try await Task.sleep(for: .milliseconds(300))
+        let before = counter.count
+        _ = try await view.evaluateJavaScript("document.querySelector('video').src='https://video.example.com/new.mp4'; document.querySelector('video').dispatchEvent(new Event('loadedmetadata'))")
+        try await Task.sleep(for: .milliseconds(600))
+        XCTAssertEqual(counter.count, before, "Background detection must send no reports")
+        _ = try await view.evaluateJavaScript("window.postMessage({type:'iris-video-policy',enabled:true,interval:250}, '*')")
+        for _ in 0..<30 {
+            if counter.count > before { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertGreaterThan(counter.count, before, "Foreground detection must catch state changed while suspended")
     }
 }

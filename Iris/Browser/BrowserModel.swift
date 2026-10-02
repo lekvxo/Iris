@@ -32,6 +32,7 @@ final class BrowserModel {
     var isSavingOffline = false
     var saveError: String?
     var isInitializing = true
+    var isBackgrounded = false
     @ObservationIgnored var videoTask: Task<Void, Never>?
     @ObservationIgnored var videoPreparationID: UUID?
     @ObservationIgnored var loadingAsset: AVURLAsset?

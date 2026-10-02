@@ -8,6 +8,7 @@ final class SettingsStore {
     var permissions: [SitePermission] = []
     var persistenceError: String?
     let blocker = BlockerController()
+    let energy: EnergyPolicy
     let archives = ArchiveStore()
     var nativeVideo = UserDefaults.standard.object(forKey: "nativeVideo") as? Bool ?? true {
         didSet { UserDefaults.standard.set(nativeVideo, forKey: "nativeVideo") }
@@ -20,6 +21,8 @@ final class SettingsStore {
     }
 
     init() {
+        let controller = blocker
+        energy = EnergyPolicy { [weak controller] in controller?.setWorkAllowed($0) }
         do {
             let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)

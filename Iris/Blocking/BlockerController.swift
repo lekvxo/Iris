@@ -9,6 +9,11 @@ final class BlockerController {
     var ruleCount = 0
     var status: String?
     private let engine = BlockerEngine()
+    private(set) var workAllowed = true
+    private(set) var refreshPending = false
+    @ObservationIgnored private var refreshTask: Task<BlockerEngine.Manifest, Error>?
+    @ObservationIgnored private var updateWaiters: [CheckedContinuation<Void, Never>] = []
+    @ObservationIgnored private var readinessWaiters: [CheckedContinuation<Void, Never>] = []
     @ObservationIgnored private var lists: [WKContentRuleList] = []
     @ObservationIgnored private var startup: Task<Void, Never>?
     @ObservationIgnored private weak var settings: SettingsStore?
@@ -45,22 +50,67 @@ final class BlockerController {
                 return
             }
         } catch { status = error.localizedDescription }
-        await refresh()
+        // Without cached rules, keep first navigation waiting rather than browse unprotected.
+        repeat {
+            while !workAllowed {
+                status = "Filter preparation waits until Iris is in the foreground and the headset cools."
+                await withCheckedContinuation { readinessWaiters.append($0) }
+            }
+            await refresh()
+        } while refreshPending && !isReady
+    }
+
+    func setWorkAllowed(_ allowed: Bool) {
+        guard workAllowed != allowed else { return }
+        workAllowed = allowed
+        if !allowed {
+            if isUpdating { refreshPending = true; refreshTask?.cancel() }
+        } else {
+            let waiters = readinessWaiters
+            readinessWaiters.removeAll()
+            for waiter in waiters { waiter.resume() }
+            if refreshPending, !isUpdating { Task { await refresh() } }
+        }
     }
 
     func refresh() async {
-        guard !isUpdating else { return }
+        if isUpdating {
+            await withCheckedContinuation { updateWaiters.append($0) }
+            return
+        }
+        guard workAllowed else {
+            refreshPending = true
+            status = "Filter updates wait until Iris is in the foreground and the headset cools."
+            return
+        }
+        refreshPending = false
         isUpdating = true
-        defer { isUpdating = false }
+        defer {
+            isUpdating = false
+            refreshTask = nil
+            let waiters = updateWaiters
+            updateWaiters.removeAll()
+            for waiter in waiters { waiter.resume() }
+            if refreshPending, workAllowed { Task { await refresh() } }
+        }
         do {
-            let manifest = try await engine.refresh()
+            let engine = engine
+            let task = Task { try await engine.refresh() }
+            refreshTask = task
+            let manifest = try await task.value
             guard try await install(manifest) else { throw FilterError.conversion("Compiled cache is unavailable") }
             status = nil
+            refreshPending = false
             let active = Set(manifest.identifiers)
             for id in await WKContentRuleListStore.default().availableIdentifiers() ?? [] where id.hasPrefix("iris-") && !active.contains(id) {
                 try? await WKContentRuleListStore.default().removeContentRuleList(forIdentifier: id)
             }
-        } catch { status = error.localizedDescription }
+        } catch {
+            if refreshTask?.isCancelled == true {
+                refreshPending = true
+                status = "Filter update paused. Existing rules remain active."
+            } else { status = error.localizedDescription }
+        }
     }
 
     private func install(_ manifest: BlockerEngine.Manifest) async throws -> Bool {

@@ -26,6 +26,7 @@ actor BlockerEngine {
 
     func refresh() async throws -> Manifest {
         let rules = try await FilterLists.download(to: root.appendingPathComponent("Sources"))
+        try Task.checkCancellation()
         let start = Date()
         let converted = try convert(rules: rules)
         let conversionSeconds = Date().timeIntervalSince(start)
@@ -50,6 +51,7 @@ actor BlockerEngine {
         let controlSet = Set(controls)
         let input = rules.filter { !$0.hasPrefix("!") && !$0.hasPrefix("[") && !controlSet.contains($0) }
         for offset in stride(from: 0, to: input.count, by: chunkSize) {
+            try Task.checkCancellation()
             let slice = Array(input[offset..<min(input.count, offset + chunkSize)])
             let result = try convertChunk(slice, controls: controls)
             output.append(contentsOf: result.json)
@@ -78,9 +80,11 @@ actor BlockerEngine {
         var identifiers: [String] = []
         do {
             for (index, source) in json.enumerated() {
+                try Task.checkCancellation()
                 let id = "iris-\(generation)-\(index + 1)"
                 _ = try await WKContentRuleListStore.default().compileContentRuleList(forIdentifier: id, encodedContentRuleList: source)
                 identifiers.append(id)
+                try Task.checkCancellation()
             }
             return identifiers
         } catch {

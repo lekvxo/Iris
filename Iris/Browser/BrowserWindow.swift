@@ -4,6 +4,8 @@ import SwiftData
 struct BrowserWindow: View {
     let initialURL: URL?
     @State private var model: BrowserModel
+    @State private var windowID = UUID()
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
     @Environment(SettingsStore.self) private var settings
@@ -35,10 +37,13 @@ struct BrowserWindow: View {
     // Keep WebKit mounted while AVKit owns the window, preserving history and page state.
     private var browser: some View {
         // A restored window resumes where the user left it, not at the link that opened it.
-        WebView(model: model, initialURL: lastURL.flatMap(URL.init(string:)) ?? initialURL ?? URL(string: "https://www.google.com")!, settings: settings)
+        WebView(model: model, initialURL: lastURL.flatMap(URL.init(string:)) ?? initialURL ?? URL(string: "https://www.google.com")!, settings: settings, probeInterval: settings.energy.probeInterval)
             .overlay {
-                if settings.blocker.isUpdating && !settings.blocker.isReady && model.url == nil {
-                    ProgressView("Preparing content blocking…").padding(24).glassBackgroundEffect()
+                if !settings.blocker.isReady && model.isInitializing {
+                    VStack {
+                        ProgressView("Preparing content blocking…")
+                        if let status = settings.blocker.status { Text(status).font(.caption) }
+                    }.padding(24).glassBackgroundEffect()
                 }
                 if let error = model.error {
                     ContentUnavailableView {
@@ -160,13 +165,22 @@ struct BrowserWindow: View {
                 if let url { lastURL = url.absoluteString }
             }
             .onAppear {
+                updateActivity()
                 model.openWindow = { openWindow(id: "browser", value: $0) }
                 model.closeWindow = { dismissWindow() }
                 model.allowedSites = settings.navigationSites
             }
+            .onChange(of: scenePhase) { _, _ in updateActivity() }
+            .onDisappear { settings.energy.setForeground(false, window: windowID) }
             .onChange(of: settings.navigationSites) { _, sites in model.allowedSites = sites }
             .sheet(isPresented: $showingSettings) { SettingsView() }
 
+    }
+
+    private func updateActivity() {
+        // Inactive is not background: system focus changes must not pause legitimate audio.
+        model.isBackgrounded = scenePhase == .background
+        settings.energy.setForeground(!model.isBackgrounded, window: windowID)
     }
 
     private var currentSavedSite: SavedSite? {

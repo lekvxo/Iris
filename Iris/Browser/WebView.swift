@@ -5,6 +5,7 @@ struct WebView: UIViewRepresentable {
     let model: BrowserModel
     let initialURL: URL
     let settings: SettingsStore
+    let probeInterval: Int
 
     func makeCoordinator() -> Coordinator { model.popup?.coordinator ?? Coordinator(model: model) }
 
@@ -59,6 +60,7 @@ struct WebView: UIViewRepresentable {
     func updateUIView(_ view: WKWebView, context: Context) {
         let site = model.url?.host.map(PublicSuffix.bundled.registrableDomain) ?? ""
         view.configuration.preferences.javaScriptCanOpenWindowsAutomatically = model.allowedSites.contains(site)
+        context.coordinator.updateVideoPolicy(view, interval: probeInterval)
     }
 
     static func dismantleUIView(_ view: WKWebView, coordinator: Coordinator) {
@@ -84,6 +86,7 @@ struct WebView: UIViewRepresentable {
         var observations: [NSKeyValueObservation] = []
         weak var settings: SettingsStore?
         var initialLoad: Task<Void, Never>?
+        private var videoPolicy: String?
         private var permittedStart = false
         private weak var permittedNavigation: WKNavigation?
         init(model: BrowserModel) { self.model = model }
@@ -223,6 +226,17 @@ struct WebView: UIViewRepresentable {
             permittedNavigation = nil
             model.serverRedirectDestination = nil
             model.lastLink = nil
+            videoPolicy = nil
+            updateVideoPolicy(webView)
+        }
+
+        func updateVideoPolicy(_ view: WKWebView, interval: Int? = nil) {
+            let enabled = !model.isBackgrounded && model.playerSession == nil
+            let interval = interval ?? settings?.energy.probeInterval ?? 250
+            let policy = "{type:'iris-video-policy',enabled:\(enabled),interval:\(interval)}"
+            guard videoPolicy != policy else { return }
+            videoPolicy = policy
+            view.evaluateJavaScript("window.postMessage(\(policy), '*')", completionHandler: nil)
         }
 
         func observe(_ view: WKWebView) {

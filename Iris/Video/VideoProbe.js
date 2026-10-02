@@ -14,7 +14,9 @@
     const sent = new WeakMap();
     let timer = 0;
     let scanPending = false;
-    function arm() { if (!timer) timer = setTimeout(flush, 250); }
+    let policy = {type: 'iris-video-policy', enabled: true, interval: 250};
+    function enabled() { return policy.enabled && !document.hidden; }
+    function arm() { if (enabled() && !timer) timer = setTimeout(flush, policy.interval); }
     function flush() {
         if (scanPending) { scanPending = false; scan(); }
         const videos = [...pending];
@@ -23,7 +25,7 @@
         for (const video of videos) send(video);
     }
     function report(video) {
-        if (!video) return;
+        if (!video || !enabled()) return;
         pending.add(video);
         arm();
     }
@@ -83,6 +85,37 @@
         active = document.querySelector('video:not([hidden])');
         report(active);
     }
-    new MutationObserver(() => { scanPending = true; arm(); }).observe(document.documentElement, {childList: true, subtree: true});
-    scan();
+    const observer = new MutationObserver(records => {
+        // Unrelated feed mutations do not require another full-document video search.
+        if ((active && !active.isConnected) || records.some(record => [...record.addedNodes].some(
+            node => node.nodeType === 1 && (node.tagName === 'VIDEO' || node.querySelector('video'))))) {
+            scanPending = true; arm();
+        }
+    });
+    function applyPolicy() {
+        observer.disconnect();
+        clearTimeout(timer); timer = 0;
+        pending.clear();
+        if (enabled()) {
+            observer.observe(document.documentElement, {childList: true, subtree: true});
+            scanPending = true; arm();
+        }
+    }
+    // Budget messages only control detector work; they confer no navigation permission.
+    window.addEventListener('message', event => {
+        const message = event.data;
+        if (!message || typeof message !== 'object') return;
+        if (message.type === 'iris-video-probe-ready') {
+            if ([...document.querySelectorAll('iframe')].some(frame => frame.contentWindow === event.source)) {
+                event.source.postMessage(policy, '*');
+            }
+        } else if (message.type === 'iris-video-policy' && typeof message.enabled === 'boolean') {
+            policy = {type: message.type, enabled: message.enabled, interval: message.interval === 2000 ? 2000 : 250};
+            applyPolicy();
+            for (const frame of document.querySelectorAll('iframe')) frame.contentWindow?.postMessage(policy, '*');
+        }
+    });
+    document.addEventListener('visibilitychange', applyPolicy);
+    applyPolicy();
+    if (window.parent !== window) window.parent.postMessage({type: 'iris-video-probe-ready'}, '*');
 })();

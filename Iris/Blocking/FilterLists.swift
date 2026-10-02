@@ -31,6 +31,7 @@ enum FilterLists {
                     text.makeContiguousUTF8()
                     let lines = normalized(text, hostsFormat: source.hostsFormat)
                     guard lines.count > 100 else { throw FilterError.invalidDownload(source.id) }
+                    try Task.checkCancellation()
                     try data.write(to: directory.appendingPathComponent(source.id + ".txt"), options: .atomic)
                     return (index, lines)
                 }
