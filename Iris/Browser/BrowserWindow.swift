@@ -5,9 +5,21 @@ struct BrowserWindow: View {
     @State private var model = BrowserModel()
     @State private var address = ""
     @Environment(\.openWindow) private var openWindow
+    @SceneStorage("lastURL") private var lastURL = "https://www.google.com"
 
     var body: some View {
-        WebView(model: model, initialURL: initialURL ?? URL(string: "https://www.google.com")!)
+        WebView(model: model, initialURL: initialURL ?? URL(string: lastURL) ?? URL(string: "https://www.google.com")!)
+            .overlay {
+                if let error = model.error {
+                    ContentUnavailableView {
+                        Label("Unable to load page", systemImage: "wifi.exclamationmark")
+                    } description: { Text(error) } actions: {
+                        Button("Try again") {
+                            model.load(model.url ?? InputRouter.destination(for: address))
+                        }.hoverEffect()
+                    }.padding().glassBackgroundEffect()
+                }
+            }
             .ornament(attachmentAnchor: .scene(.top)) {
                 HStack(spacing: 8) {
                     tool("Back", "chevron.left", disabled: !model.canGoBack) { model.webView?.goBack() }
@@ -25,7 +37,10 @@ struct BrowserWindow: View {
                 .padding(12)
                 .glassBackgroundEffect()
             }
-            .onChange(of: model.url) { _, url in address = url?.absoluteString ?? "" }
+            .onChange(of: model.url) { _, url in
+                address = url?.absoluteString ?? ""
+                if let url { lastURL = url.absoluteString }
+            }
             .onAppear { model.openWindow = { openWindow(id: "browser", value: $0) } }
     }
 

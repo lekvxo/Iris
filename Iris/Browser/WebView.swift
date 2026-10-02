@@ -38,6 +38,17 @@ struct WebView: UIViewRepresentable {
         var observations: [NSKeyValueObservation] = []
         init(model: BrowserModel) { self.model = model }
 
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            report(error)
+        }
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            report(error)
+        }
+        private func report(_ error: Error) {
+            guard (error as NSError).code != NSURLErrorCancelled else { return }
+            model.error = error.localizedDescription
+        }
+
         func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                      for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
             if let url = navigationAction.request.url { model.openWindow?(url) }
