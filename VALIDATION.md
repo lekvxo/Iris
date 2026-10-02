@@ -23,6 +23,29 @@ Final result: build succeeded with no compiler/build warnings; 25 local tests pa
 
 Verified behavior includes URL/search routing and encoding; Public Suffix List wildcard, exception, private suffix and international-domain handling; navigation policy and real WebKit delegate registration; page-world inability to forge gesture messages; scripted popup reporting and cross-site jump cancellation; WebKit cosmetic blocking and rule removal; media/DRM/MSE classification and playing-frame selection; cookie scope; SwiftData reopen/rename/delete; atomic archive storage and path validation; guarded webarchive replay; release of four web views and their coordinators/models. A production simulator launch loaded Google, displayed the ornament, and persisted all eight compiled filter shards before browsing.
 
+## UI review fixes — October 1, 2026
+
+A UI review after the phases found the issues below. Each fix was built and tested on the visionOS 27 simulator before its commit. Final state: build succeeded with no compiler/build warnings; 29 tests ran, 28 passed and 1 skipped (the optional live filter check), with zero failures.
+
+| Commit | Fix |
+| --- | --- |
+| `2f52820` | Toolbar ornament sits above the window (`contentAlignment: .bottom`) instead of covering the top of pages. The progress bar is overlaid on its bottom edge, and the chips float over the page, so neither changes the toolbar's size. |
+| `b72a203` | Load errors clear when any navigation starts; Try again retries the failing URL; WebKit's download interrupt (102) no longer shows an error card. |
+| `a03c7e0` | New windows use a `WindowRequest` with a fresh id, so an already-open URL still opens a new window. Restored windows resume their last page rather than the link that opened them. |
+| `e863314` | Untitled pages save under their host name. |
+| `2760846` | Address field has a rounded border and restores the page address when editing ends without submitting. |
+| `10b1d6d` | Confirmation before removing a saved site (star or list) or clearing website data. |
+| `b8ab704` | Video notes can be dismissed, per video. |
+| `749e095` | Settings lists sites with blocking turned off, each with a Turn on button. |
+| `d4b93c6` | VideoProbe batches reports every 250 ms and only re-sends when the video's state changes, or after 5 s for playback time alone. New `VideoProbeTests` floods a page with 1,000 DOM changes: the old probe sent 51 reports, the new one 1–3. |
+| `4ba39f9` | Allowed popups return a real child web view, so `window.opener` survives, and `window.close()` closes the popup's window. Built-in sign-in hosts may open a popup within 2 s of a trusted tap. The new `testAllowedPopupKeepsItsOpener` (real WebKit) checks the page gets a window handle and the popup has its own script message handlers; `testSignInPopupNeedsRecentTap` covers the guard rule. |
+
+Simulator launch after the fixes: Google loaded, the toolbar sat above the window with a visible address field, and the progress bar ran along the toolbar's edge without moving it.
+
+Known limits: "Open once" on a blocked popup still opens an unlinked window, because the page already received a failed `window.open`. For providers not on the sign-in list, use Always allow on this site and tap sign-in again. Popups that open blank and set their address afterwards remain blocked.
+
+Headset checks for these fixes: the same new-tab link twice gives two windows; a link-opened window restores its last page after relaunch; Back after a failed load clears the error card; the toolbar stays put during loads and when chips appear; Google popup sign-in completes and the popup closes itself; aggressive sites still open nothing on blank taps; delete and clear-data prompts appear; video notes dismiss; the shield list re-enables blocking; four busy video windows stay smooth.
+
 Simulator WebKit emits process-suspension diagnostics when fixture windows close; these are runtime system logs, not compiler warnings or failed tests.
 
 Pending: signing with Max's team and every headset check in PLAN.md §7. Native fullscreen behavior, environments/docking, real playback/time continuity, gaze/pinch, Wi-Fi-off archives and four-window smoothness cannot be certified by these unit tests. No Phase 0 spike result has been invented.
