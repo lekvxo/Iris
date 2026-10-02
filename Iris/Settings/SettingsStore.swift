@@ -8,6 +8,12 @@ final class SettingsStore {
     var permissions: [SitePermission] = []
     var persistenceError: String?
     let blocker = BlockerController()
+    var blockingEnabled = UserDefaults.standard.object(forKey: "blockingEnabled") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(blockingEnabled, forKey: "blockingEnabled")
+            blocker.applyToAll(reload: true)
+        }
+    }
 
     init() {
         do {
@@ -22,6 +28,29 @@ final class SettingsStore {
 
     var navigationSites: Set<String> {
         Set(permissions.filter(\.allowsNavigation).map(\.domain))
+    }
+
+    var blockingOffSites: Set<String> {
+        Set(permissions.filter(\.blockingDisabled).map(\.domain))
+    }
+
+    func blockingActive(for url: URL?) -> Bool {
+        guard blockingEnabled else { return false }
+        let site = url?.host.map(PublicSuffix.bundled.registrableDomain) ?? ""
+        return !blockingOffSites.contains(site)
+    }
+
+    func toggleBlocking(for url: URL?) {
+        guard let host = url?.host else { return }
+        let domain = PublicSuffix.bundled.registrableDomain(host)
+        let permission = permissions.first { $0.domain == domain } ?? SitePermission(domain: domain)
+        if !permissions.contains(where: { $0 === permission }) {
+            container.mainContext.insert(permission)
+            permissions.append(permission)
+        }
+        permission.blockingDisabled.toggle()
+        save()
+        blocker.applyToAll(reload: true)
     }
 
     func allowNavigation(on domain: String, allow: Bool) {

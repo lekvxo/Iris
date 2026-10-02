@@ -117,6 +117,7 @@ struct WebView: UIViewRepresentable {
             if model.nativeDestination == action.request.url { model.nativeDestination = nil }
             if model.serverRedirectDestination == action.request.url { model.serverRedirectDestination = nil }
             if allowed {
+                settings?.blocker.apply(to: webView, destination: action.request.url)
                 permittedStart = true
                 model.blocked = nil
                 // One gesture authorizes one destination, not later timers.
@@ -137,6 +138,7 @@ struct WebView: UIViewRepresentable {
         func webView(_ webView: WKWebView, didReceiveServerRedirectForProvisionalNavigation navigation: WKNavigation!) {
             if let navigation, navigation === permittedNavigation {
                 model.serverRedirectDestination = webView.url
+                settings?.blocker.apply(to: webView, destination: webView.url)
             }
         }
 

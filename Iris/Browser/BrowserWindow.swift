@@ -38,7 +38,11 @@ struct BrowserWindow: View {
                     tool("Save", "star", disabled: true) {}
                     tool("Saved sites", "book", disabled: true) {}
                     tool("Watch in Player", "play.rectangle", disabled: true) {}
-                    tool("Blocking", "shield", disabled: true) {}
+                    tool(settings.blockingActive(for: model.url) ? "Blocking on" : "Blocking off",
+                         settings.blockingActive(for: model.url) ? "shield.fill" : "shield.slash",
+                         disabled: model.url?.host == nil || !settings.blockingEnabled) {
+                        settings.toggleBlocking(for: model.url)
+                    }
                     tool("Settings", "gear") { showingSettings = true }
                 }
                 .padding(12)

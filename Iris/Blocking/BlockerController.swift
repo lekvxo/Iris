@@ -73,6 +73,7 @@ final class BlockerController {
 
     func apply(to view: WKWebView, destination: URL?) {
         view.configuration.userContentController.removeAllContentRuleLists()
+        guard settings?.blockingActive(for: destination) != false else { return }
         for list in lists { view.configuration.userContentController.add(list) }
     }
 
