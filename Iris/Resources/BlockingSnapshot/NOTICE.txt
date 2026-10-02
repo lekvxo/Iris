@@ -1,0 +1,203 @@
+Iris bundled blocking snapshot. SafariConverterLib 4.3.0, advancedBlocking=false, Safari 26 rules.
+Full source lists and embedded notices are in Sources/*.txt.lzfse.
+
+ubo-ads: https://ublockorigin.github.io/uAssets/filters/filters.txt
+! Title: uBlock filters
+! Last modified: Sat, 26 Sep 2026 14:43:33 +0000
+! Expires: 5 days
+! Description: Filters optimized for uBlock, to be used along EasyList
+! Homepage: https://github.com/uBlockOrigin/uAssets
+! License: https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE
+!
+! GitHub issues: https://github.com/uBlockOrigin/uAssets/issues
+! GitHub pull requests: https://github.com/uBlockOrigin/uAssets/pulls
+! https://github.com/uBlockOrigin/uAssets/issues/1408
+! https://github.com/easylist/easylist/issues/5112
+! @@||youtube.com/get_video_info?*timedtext_editor$xhr,1p
+! https://redd.it/ggcmkp https://redd.it/gx03e0
+! https://github.com/uBlockOrigin/uAssets/pull/18106/
+! https://www.reddit.com/r/uBlockOrigin/comments/1atwzem/comment/l06ayn9/
+!#if !cap_html_filtering
+!#else
+!#endif
+! https://www.reddit.com/r/uBlockOrigin/comments/154vtwy/getting_ads_on_youtube/jsu299l/
+! https://github.com/uBlockOrigin/uBlock-issues/issues/3083#issuecomment-1899349892
+! https://github.com/uBlockOrigin/uBlock-discussions/discussions/831#discussioncomment-8271839
+! https://github.com/uBlockOrigin/uAssets/issues/7636#issuecomment-1674303331
+! https://github.com/uBlockOrigin/uAssets/issues/15632
+! https://www.reddit.com/r/uBlockOrigin/comments/163cy47/youtube_antiadblock_and_ads_weekly_thread_august/jyemgzo/
+! Shorts Ad
+!
+! https://github.com/NanoMeow/QuickReports/issues/2493
+! https://adblockplus.org/forum/viewtopic.php?f=2&t=43192
+! Users should not have to punch holes in their blockers if it can be avoided.
+
+ubo-privacy: https://ublockorigin.github.io/uAssets/filters/privacy.txt
+! Title: uBlock filters – Privacy
+! Last modified: Fri, 02 Oct 2026 05:55:00 +0000
+! Expires: 7 days
+! Description: |
+!   Some of these filters make use of the `important` filter option,`
+!   which purpose is to guarantee that a filter won't be overriden by
+!   exception filters.
+! License: https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE
+! Homepage: https://github.com/uBlockOrigin/uAssets
+!
+! GitHub issues: https://github.com/uBlockOrigin/uAssets/issues
+! GitHub pull requests: https://github.com/uBlockOrigin/uAssets/pulls
+! Redirect to neutered Google Analytics
+! Redirect to neutered Google Analytics Experiments
+! https://www.reddit.com/r/uBlockOrigin/comments/xif3tf/
+! https://github.com/uBlockOrigin/uAssets/issues/29730
+! https://github.com/gorhill/uBlock/issues/1411
+! https://www.reddit.com/r/firefox/comments/3pwcey/firefox_extension_download_manager_s3_asks_for/
+! https://www.reddit.com/r/chrome/comments/473ves/help_how_to_remove_qipru_redirect_when_searching/
+! https://github.com/gorhill/uBlock/issues/1411#issuecomment-201031771
+! https://www.reddit.com/r/ublock/comments/47o2ih/ublock_disabling_all_javascript_links/d0fhock
+! Time to bring this filter out of experimental status
+! https://github.com/gorhill/uBlock/issues/1265
+! https://github.com/uBlockOrigin/uAssets/issues/7
+! https://www.eff.org/deeplinks/2014/07/white-house-website-includes-unique-non-cookie-tracker-despite-privacy-policy
+! https://github.com/uBlockOrigin/uAssets/issues/1713
+! https://github.com/uBlockOrigin/uAssets/issues/6319
+! https://github.com/gorhill/uBlock/issues/1384
+! https://github.com/uBlockOrigin/uAssets/issues/11003
+##.addthis_toolbox
+! Examples of what is fixed by even an unfilled dummy API:
+! https://twitter.com/kenn_butler/status/709163241021317120
+! https://adblockplus.org/forum/viewtopic.php?f=10&t=48183
+
+ubo-badware: https://ublockorigin.github.io/uAssets/filters/badware.txt
+! Title: uBlock₀ filters – Badware risks
+! Last modified: Thu, 01 Oct 2026 11:14:23 +0000
+! Expires: 5 days
+! Description: For sites documented to put users at risk of installing adware/crapware/malware, having login credentials stolen, etc.
+! The purpose is to at least ensure a user is warned of the risks ahead.
+! License: https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE
+! Homepage: https://github.com/uBlockOrigin/uAssets
+!
+! GitHub issues: https://github.com/uBlockOrigin/uAssets/issues
+! GitHub pull requests: https://github.com/uBlockOrigin/uAssets/pulls
+!
+! Each entry has to be well enough sourced, see the comments above each entry for sources
+! Using request of type `document` will cause the whole site to be blocked through
+! strict blocking, yet the site will render properly if a user still decides to
+! go ahead.
+! 2014-10-22: https://assiste.com/01Net.html
+! 2013-03-25: https://www.malekal.com/pctutotuto4pc-association-avec-01net/
+! 2012-10-31: https://www.journaldunet.com/solutions/dsi/des-malwares-sur-telecharger-com-01net-1012.shtml
+! 2012-10-30: https://www.lesnumeriques.com/appli-logiciel/telecharger-depuis-01net-nuit-gravement-a-sante-pc-n26763.html
+! 2012-06-17: https://www.malekal.com/01net-pc-optimizer-pour-ne-pas-optimiser-son-pc/
+! 2012-02-17: http://neosting.net/logiciels/01net-et-softonic-ajoutent-aussi-un-installeur-publicitaire.html (Dead page)
+! 2015-03-11: https://blog.emsisoft.com/en/12678/mind-the-pup-top-download-portals-to-avoid/
+! 2015-01-21: https://www.howtogeek.com/207692/yes-every-freeware-download-site-is-serving-crapware-heres-the-proof/
+! 2015-01-11: https://www.howtogeek.com/198622/heres-what-happens-when-you-install-the-top-10-download.com-apps/
+! 2012-06-27: https://insecure.org/news/download-com-fiasco.html
+! 2011-12-05: https://seclists.org/nmap-announce/2011/5
+! 2011-08-22: https://www.extremetech.com/computing/93504-download-com-wraps-downloads-in-bloatware-lies-about-motivations
+! https://github.com/uBlockOrigin/uAssets/issues/926
+! ||download.cnet.com^$doc
+! https://github.com/uBlockOrigin/uAssets/issues/79
+! https://github.com/uBlockOrigin/uAssets/issues/1547
+! https://github.com/uBlockOrigin/uAssets/issues/1738
+! https://github.com/uBlockOrigin/uAssets/issues/1853
+! https://github.com/gorhill/uBlock/wiki/Badware-risks#ublockorg
+! ||ublock.org^$doc
+! https://github.com/uBlockOrigin/uAssets/issues/3060
+! https://www.bleepingcomputer.com/news/security/fake-websites-for-keepass-7zip-audacity-others-found-pushing-adware/
+! https://www.virustotal.com/#/file/a5616985e92ca7c1df3b132d2da2ef33c64f38ba2dca40445017037473d7d014/detection
+! https://twitter.com/certbund/status/1127864403276091393
+! https://github.com/uBlockOrigin/uAssets/issues/17880
+
+ubo-unbreak: https://ublockorigin.github.io/uAssets/filters/unbreak.txt
+! Title: uBlock filters – Unbreak
+! Last modified: Wed, 23 Sep 2026 10:04:33 +0000
+! Expires: 5 days
+! Description: Filters optimized for uBlock Origin, to unbreak sites broken as a result of 3rd-party filter lists enabled by default.
+! Homepage: https://github.com/uBlockOrigin/uAssets
+! License: https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE
+!
+! GitHub issues: https://github.com/uBlockOrigin/uAssets/issues
+! GitHub pull requests: https://github.com/uBlockOrigin/uAssets/pulls
+! START: Removeparam/Bounce/Click trackings
+! password reset link broken on coindesk.com
+! swagbucks.com - restore inactive
+! https://github.com/uBlockOrigin/uAssets/issues/27448
+! END: Bounce/Click trackings
+! https://github.com/uBlockOrigin/uAssets/issues/729
+! https://github.com/NanoMeow/QuickReports/issues/1636
+! https://github.com/uBlockOrigin/uAssets/issues/22160
+! https://github.com/uBlockOrigin/uAssets/issues/22385
+!#if env_firefox
+!#endif
+! Chrome store feedback
+! To counter `top.mail.ru` in Peter Lowe's
+! `amazon-adsystem.com` is blocked by Peter Lowe's. The neutered script should
+! help lower chances of breakage. Examples:
+! - http://www.food.com/recipe/oven-baked-sweet-plantains-80130 (slideshow controls broken)
+! - [add more]
+! https://github.com/uBlockOrigin/uAssets/issues/317
+! This potentially unbreaks sites broken by EasyPrivacy's `/b/ss/*&aqe=`
+! Confirmed for:
+! - http://www.surfline.com/video/ (links not working)
+! - https://github.com/gorhill/uBlock/issues/529
+! - http://www.scotrail.co.uk/check-your-journey (via https://twitter.com/andy_pee_tho/status/710508529405263872)
+! https://adblockplus.org/forum/viewtopic.php?f=1&t=44930
+! https://github.com/uBlockOrigin/uAssets/issues/4353#issuecomment-449159137
+! https://github.com/jspenguin2017/uBlockProtector/issues/1085
+
+easylist: https://ublockorigin.github.io/uAssets/thirdparties/easylist.txt
+! Title: EasyList
+! Expires: 6 days (update frequency)
+! Last modified: Fri, 02 Oct 2026 13:12:31 +0000
+! Diff-Path: %diffpath%#easylist
+! Diff-Expires: 317 minutes
+! *** easylist:template_header.txt ***
+!
+! Please report any unblocked adverts or problems
+! in the forums (https://forums.lanik.us/)
+! or via e-mail (easylist@protonmail.com).
+!
+! Homepage: https://easylist.to/
+! Licence: https://easylist.to/pages/licence.html
+! GitHub issues: https://github.com/easylist/easylist/issues
+! GitHub pull requests: https://github.com/easylist/easylist/pulls
+!
+!-----------------------General advert blocking filters-----------------------!
+! *** easylist:easylist/easylist_general_block.txt ***
+
+easyprivacy: https://ublockorigin.github.io/uAssets/thirdparties/easyprivacy.txt
+! Title: EasyPrivacy
+! Expires: 6 days (update frequency)
+! Last modified: Fri, 02 Oct 2026 13:12:31 +0000
+! Diff-Path: %diffpath%#easyprivacy
+! Diff-Expires: 317 minutes
+! *** easylist:template_header.txt ***
+!
+! Please report any unblocked adverts or problems
+! in the forums (https://forums.lanik.us/)
+! or via e-mail (easylist@protonmail.com).
+!
+! Homepage: https://easylist.to/
+! Licence: https://easylist.to/pages/licence.html
+! GitHub issues: https://github.com/easylist/easylist/issues
+! GitHub pull requests: https://github.com/easylist/easylist/pulls
+!
+!-----------------General tracking systems-----------------!
+! *** easylist:easyprivacy/easyprivacy_general.txt ***
+
+peter-lowe: https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=1&mimetype=plaintext
+# Blocklist for use with hosts files to block ads, trackers, and other nasty things
+#
+# For more information about this list, see: https://pgl.yoyo.org/adservers/
+# ----
+# last updated:   Wed, 30 Sep 2026 11:38:16 GMT
+# entries:        3551
+# format:         hosts (hosts -- in hosts file format)
+# credits:        Peter Lowe - pgl@yoyo.org - https://pgl.yoyo.org/ - https://twitter.com/pgl
+# this URL:       https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=1&mimetype=plaintext
+# Patreon:        https://patreon.com/blocklist
+# other formats:  https://pgl.yoyo.org/adservers/formats.php
+# policy:         https://pgl.yoyo.org/adservers/policy.php
+#
+# start date:    Fri, 06 Jun 2003 00:00:00

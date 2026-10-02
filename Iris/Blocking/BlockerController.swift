@@ -8,7 +8,10 @@ final class BlockerController {
     var lastUpdated: Date?
     var ruleCount = 0
     var status: String?
-    private let engine = BlockerEngine()
+    private let engine: BlockerEngine
+    private let bundled: BundledBlocker
+    private let refreshOperation: @Sendable () async throws -> BlockerEngine.Manifest
+    @ObservationIgnored private var fallbackTask: Task<BlockerEngine.Manifest, Error>?
     private(set) var workAllowed = true
     private(set) var refreshPending = false
     @ObservationIgnored private var refreshTask: Task<BlockerEngine.Manifest, Error>?
@@ -24,6 +27,13 @@ final class BlockerController {
         var enabled: Bool?
         var revision = -1
         init(_ view: WKWebView) { self.view = view }
+    }
+
+    init(engine: BlockerEngine = BlockerEngine(), bundled: BundledBlocker = BundledBlocker(),
+         refreshOperation: (@Sendable () async throws -> BlockerEngine.Manifest)? = nil) {
+        self.engine = engine
+        self.bundled = bundled
+        self.refreshOperation = refreshOperation ?? { try await engine.refresh() }
     }
 
     func register(_ view: WKWebView, settings: SettingsStore) {
@@ -50,6 +60,30 @@ final class BlockerController {
                 return
             }
         } catch { status = error.localizedDescription }
+        // Offline first launch uses the complete bundled snapshot before browsing.
+        // Runtime caches remain first choice, and weekly downloads still replace it.
+        repeat {
+            while !workAllowed {
+                status = "Filter preparation waits until Iris is in the foreground and the headset cools."
+                await withCheckedContinuation { readinessWaiters.append($0) }
+            }
+            let bundled = bundled
+            let task = Task { try await bundled.load() }
+            fallbackTask = task
+            do {
+                let manifest = try await task.value
+                fallbackTask = nil
+                guard try await install(manifest) else { throw FilterError.conversion("Bundled cache is unavailable") }
+                status = "Using bundled protection until filter lists update."
+                Task { await refresh() }
+                return
+            } catch {
+                fallbackTask = nil
+                if task.isCancelled { continue }
+                status = error.localizedDescription
+                break
+            }
+        } while !isReady
         // Without cached rules, keep first navigation waiting rather than browse unprotected.
         repeat {
             while !workAllowed {
@@ -64,6 +98,7 @@ final class BlockerController {
         guard workAllowed != allowed else { return }
         workAllowed = allowed
         if !allowed {
+            fallbackTask?.cancel()
             if isUpdating { refreshPending = true; refreshTask?.cancel() }
         } else {
             let waiters = readinessWaiters
@@ -94,15 +129,15 @@ final class BlockerController {
             if refreshPending, workAllowed { Task { await refresh() } }
         }
         do {
-            let engine = engine
-            let task = Task { try await engine.refresh() }
+            let refreshOperation = refreshOperation
+            let task = Task { try await refreshOperation() }
             refreshTask = task
             let manifest = try await task.value
             guard try await install(manifest) else { throw FilterError.conversion("Compiled cache is unavailable") }
             status = nil
             refreshPending = false
             let active = Set(manifest.identifiers)
-            for id in await WKContentRuleListStore.default().availableIdentifiers() ?? [] where id.hasPrefix("iris-") && !active.contains(id) {
+            for id in await WKContentRuleListStore.default().availableIdentifiers() ?? [] where id.hasPrefix("iris-") && !id.hasPrefix("iris-bundled-") && !active.contains(id) {
                 try? await WKContentRuleListStore.default().removeContentRuleList(forIdentifier: id)
             }
         } catch {

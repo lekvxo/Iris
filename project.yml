@@ -15,7 +15,11 @@ targets:
   Iris:
     type: application
     platform: visionOS
-    sources: [Iris]
+    sources:
+      - path: Iris
+        excludes: [Resources/BlockingSnapshot]
+      - path: Iris/Resources/BlockingSnapshot
+        type: folder
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.max.iris

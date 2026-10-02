@@ -1,0 +1,46 @@
+{
+  "converterVersion" : "4.3.0",
+  "createdAt" : 812662452.819991,
+  "shards" : [
+    {
+      "file" : "rules-1.json.lzfse",
+      "ruleCount" : 12785,
+      "sha256" : "8ec9936943ae27d9a88d49a81fbc4ec8ee170ab9d674ad87579c2635f1ebf20a"
+    },
+    {
+      "file" : "rules-2.json.lzfse",
+      "ruleCount" : 16479,
+      "sha256" : "53f85fd46e1f81dca112618ce87501e67018206587472dd2e0ac55d2ac6ae13b"
+    },
+    {
+      "file" : "rules-3.json.lzfse",
+      "ruleCount" : 23651,
+      "sha256" : "d481204c65b4b1f4f4d1d20833230e698361efedbaeefe7437686d5b1068cb48"
+    },
+    {
+      "file" : "rules-4.json.lzfse",
+      "ruleCount" : 23444,
+      "sha256" : "4e4d51b32f84a26ab6bd348f7dd4824b157dcea3d70f11d6d5d954de48d3d934"
+    },
+    {
+      "file" : "rules-5.json.lzfse",
+      "ruleCount" : 19387,
+      "sha256" : "51e12d51fa925ab84def2085f6d3686de41fc48dd4c68ddea6ee0e97baae8e22"
+    },
+    {
+      "file" : "rules-6.json.lzfse",
+      "ruleCount" : 23608,
+      "sha256" : "9a3dd3e48b7f81af0e4bb1156fccf1f975a0f707c08e8e69c7bdb52b016f019a"
+    },
+    {
+      "file" : "rules-7.json.lzfse",
+      "ruleCount" : 23648,
+      "sha256" : "f47cd995ec9c2f75d4f25f0a918ff8b75ea20f5cb5677252c71e91adb1274089"
+    },
+    {
+      "file" : "rules-8.json.lzfse",
+      "ruleCount" : 12415,
+      "sha256" : "7d8d625479295f98012efd30a9e20026b82bddecb3d2c1faa957f36826f8146b"
+    }
+  ]
+}

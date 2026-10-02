@@ -13,7 +13,7 @@ One checklist, following §7's order:
 - [ ] §7.5: Back, forward, reload and stop work by gaze/pinch; errors clear on navigation; the ornament stays put.
 - [ ] §7.6: The same new-tab link opened twice creates two windows; closing them stops their work. Unadopted popups expire instead of leaking.
 - [ ] §7.7: Shield on reduces news-site ads; a per-site exception survives relaunch and can be removed in Settings.
-- [ ] §7.8: Weekly/manual filter updates keep browsing responsive. Cached blocking remains active while updates defer under heat/backgrounding and resume when allowed.
+- [ ] §7.8: On a fresh install with Wi-Fi off, Settings shows bundled protection and a nonzero rule count without downloading lists. Reconnect and compare shield on/off on an ad-heavy page. Weekly/manual filter updates keep browsing responsive; failed updates retain protection. Cached blocking remains active while updates defer under heat/backgrounding and resume when allowed.
 - [ ] §7.9: Compare both Settings video modes with direct MP4 and HLS. Verify Apple player controls, captions/audio choices when offered, environments/docking, seek continuity and return to the preserved page. Navigate/close during preparation: no late player/audio. Disconnect/reconnect networking during playback: Retry works and Back still returns. Native fullscreen on streamed/protected sites must use the website's supported path.
 - [ ] §7.10: Unsupported video explains why Watch is unavailable; no crash. A stopped page process offers Try again; playback stalls/failures offer Retry or Back.
 - [ ] §7.11: Saved sites survive relaunch. Wi-Fi-off archives open, reload and recover from a page-process stop using local data; rename/delete confirmations work.
