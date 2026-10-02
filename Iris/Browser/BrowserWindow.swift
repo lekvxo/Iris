@@ -4,7 +4,6 @@ import SwiftData
 struct BrowserWindow: View {
     let initialURL: URL?
     @State private var model = BrowserModel()
-    @State private var address = ""
     @Environment(\.openWindow) private var openWindow
     @Environment(SettingsStore.self) private var settings
     @State private var showingSettings = false
@@ -24,7 +23,7 @@ struct BrowserWindow: View {
                         Label("Unable to load page", systemImage: "wifi.exclamationmark")
                     } description: { Text(error) } actions: {
                         Button("Try again") {
-                            model.load(model.requestedURL ?? model.url ?? InputRouter.destination(for: address))
+                            if let url = model.requestedURL ?? model.url { model.load(url) }
                         }.hoverEffect()
                     }.padding().glassBackgroundEffect()
                 }
@@ -72,7 +71,7 @@ struct BrowserWindow: View {
                     tool(model.isLoading ? "Stop" : "Reload", model.isLoading ? "xmark" : "arrow.clockwise") {
                         if model.isLoading { model.webView?.stopLoading() } else { model.webView?.reload() }
                     }
-                    AddressField(text: $address) { model.load(InputRouter.destination(for: address)) }
+                    AddressField(text: model.url?.absoluteString ?? "") { model.load(InputRouter.destination(for: $0)) }
                         .frame(width: 420, height: 44)
                         .disabled(model.isInitializing)
                     Menu {
@@ -125,7 +124,6 @@ struct BrowserWindow: View {
                 }
             }
             .onChange(of: model.url) { _, url in
-                address = url?.absoluteString ?? ""
                 if let url { lastURL = url.absoluteString }
             }
             .onAppear {
