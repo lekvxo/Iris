@@ -9,9 +9,27 @@
         if (!video.dataset.irisVideo) video.dataset.irisVideo = session + '-' + (++counter);
         return video.dataset.irisVideo;
     }
+    // Busy pages mutate and fire timeupdate constantly; batch reports so native sees a few per second at most.
+    const pending = new Set();
+    const sent = new WeakMap();
+    let timer = 0;
+    let scanPending = false;
+    function arm() { if (!timer) timer = setTimeout(flush, 250); }
+    function flush() {
+        if (scanPending) { scanPending = false; scan(); }
+        const videos = [...pending];
+        pending.clear();
+        timer = 0;
+        for (const video of videos) send(video);
+    }
     function report(video) {
-        if (!video || !video.isConnected) return;
-        window.webkit.messageHandlers.irisVideo.postMessage({
+        if (!video) return;
+        pending.add(video);
+        arm();
+    }
+    function send(video) {
+        if (!video.isConnected) return;
+        const message = {
             id: id(video), src: video.currentSrc || video.src || '',
             time: Number.isFinite(video.currentTime) ? video.currentTime : 0,
             duration: Number.isFinite(video.duration) ? video.duration : null,
@@ -19,7 +37,14 @@
             manifest: Date.now() - manifestAt < 30000 ? manifest : null,
             nativeFullscreen: typeof video.webkitEnterFullscreen === 'function' || typeof video.requestFullscreen === 'function',
             playing: !video.paused && !video.ended
-        });
+        };
+        const key = JSON.stringify([message.src, message.duration, message.drm, message.manifest, message.nativeFullscreen, message.playing]);
+        const previous = sent.get(video);
+        const now = Date.now();
+        // Playback time alone changes constantly; refresh it every few seconds.
+        if (previous && previous.key === key && now - previous.at < 5000) return;
+        sent.set(video, {key, at: now});
+        window.webkit.messageHandlers.irisVideo.postMessage(message);
     }
     function note(raw) {
         try {
@@ -58,6 +83,6 @@
         active = document.querySelector('video:not([hidden])');
         report(active);
     }
-    new MutationObserver(scan).observe(document.documentElement, {childList: true, subtree: true});
+    new MutationObserver(() => { scanPending = true; arm(); }).observe(document.documentElement, {childList: true, subtree: true});
     scan();
 })();
