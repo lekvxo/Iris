@@ -34,9 +34,12 @@ struct NavigationGuard {
         // An iframe must never use a main-frame gesture or sign-in exception.
         if !request.mainFrame { return !request.popup && sameSite }
         if request.allowedSites.contains(sourceSite) { return true }
-        let matchingClick = request.gestureAge >= 0 && request.gestureAge <= 2 &&
-            request.clickedLink?.host?.lowercased() == target
-        if request.popup { return request.linkActivated && matchingClick }
+        let recentGesture = request.gestureAge >= 0 && request.gestureAge <= 2
+        let matchingClick = recentGesture && request.clickedLink?.host?.lowercased() == target
+        // Sign-in buttons open their provider with window.open: a real tap, but no link.
+        if request.popup {
+            return (request.linkActivated && matchingClick) || (recentGesture && Self.signInHosts.contains(target))
+        }
         return sameSite || request.historyOrReload || request.form || request.serverRedirect ||
             matchingClick || Self.signInHosts.contains(target)
     }

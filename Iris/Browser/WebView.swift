@@ -6,32 +6,21 @@ struct WebView: UIViewRepresentable {
     let initialURL: URL
     let settings: SettingsStore
 
-    func makeCoordinator() -> Coordinator { Coordinator(model: model) }
+    func makeCoordinator() -> Coordinator { model.popup?.coordinator ?? Coordinator(model: model) }
 
     func makeUIView(context: Context) -> WKWebView {
+        // A popup arrives already loading, wired to this coordinator by its opener.
+        if let popup = model.popup {
+            model.popup = nil
+            return popup.view
+        }
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.preferredContentMode = .desktop
         configuration.websiteDataStore = .default()
         configuration.allowsInlineMediaPlayback = true
         configuration.preferences.isElementFullscreenEnabled = true
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
-        configuration.userContentController.add(context.coordinator, name: "irisPopup")
-        configuration.userContentController.addUserScript(WKUserScript(
-            source: ScriptSource.read("PopupProbe"), injectionTime: .atDocumentStart, forMainFrameOnly: false))
-        configuration.userContentController.add(context.coordinator, contentWorld: .defaultClient, name: "irisGesture")
-        configuration.userContentController.addUserScript(WKUserScript(
-            source: ScriptSource.read("GestureProbe"), injectionTime: .atDocumentStart,
-            forMainFrameOnly: true, in: .defaultClient))
-        configuration.userContentController.add(context.coordinator, name: "irisVideo")
-        configuration.userContentController.addUserScript(WKUserScript(
-            source: ScriptSource.read("VideoProbe"), injectionTime: .atDocumentEnd, forMainFrameOnly: false))
-        let view = WKWebView(frame: .zero, configuration: configuration)
-        view.allowsBackForwardNavigationGestures = true
-        view.navigationDelegate = context.coordinator
-        view.uiDelegate = context.coordinator
-        model.webView = view
-        context.coordinator.observe(view)
-        context.coordinator.settings = settings
+        let view = Self.makeWebView(configuration, coordinator: context.coordinator, settings: settings)
         context.coordinator.initialLoad = Task { [weak view, weak model] in
             await settings.blocker.prepare(settings: settings)
             guard !Task.isCancelled, let view, let model else { return }
@@ -39,6 +28,31 @@ struct WebView: UIViewRepresentable {
             model.isInitializing = false
             model.load(initialURL)
         }
+        return view
+    }
+
+    static func makeWebView(_ configuration: WKWebViewConfiguration, coordinator: Coordinator, settings: SettingsStore) -> WKWebView {
+        // Each window gets its own controller so script messages reach its own coordinator.
+        // A popup's configuration arrives holding its opener's controller, so it is always replaced.
+        let controller = WKUserContentController()
+        controller.add(coordinator, name: "irisPopup")
+        controller.addUserScript(WKUserScript(
+            source: ScriptSource.read("PopupProbe"), injectionTime: .atDocumentStart, forMainFrameOnly: false))
+        controller.add(coordinator, contentWorld: .defaultClient, name: "irisGesture")
+        controller.addUserScript(WKUserScript(
+            source: ScriptSource.read("GestureProbe"), injectionTime: .atDocumentStart,
+            forMainFrameOnly: true, in: .defaultClient))
+        controller.add(coordinator, name: "irisVideo")
+        controller.addUserScript(WKUserScript(
+            source: ScriptSource.read("VideoProbe"), injectionTime: .atDocumentEnd, forMainFrameOnly: false))
+        configuration.userContentController = controller
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.allowsBackForwardNavigationGestures = true
+        view.navigationDelegate = coordinator
+        view.uiDelegate = coordinator
+        coordinator.model.webView = view
+        coordinator.observe(view)
+        coordinator.settings = settings
         return view
     }
 
@@ -67,6 +81,7 @@ struct WebView: UIViewRepresentable {
         coordinator.model.playerSession = nil
         coordinator.model.video = nil
         coordinator.model.openWindow = nil
+        coordinator.model.closeWindow = nil
     }
 
     @MainActor final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
@@ -82,8 +97,11 @@ struct WebView: UIViewRepresentable {
             if message.name == "irisPopup", let body = message.body as? [String: Any],
                let value = body["url"] as? String, let url = URL(string: value),
                ["http", "https"].contains(url.scheme), url.host != nil {
-                let site = model.url?.host.map(PublicSuffix.bundled.registrableDomain) ?? ""
-                if !message.frameInfo.isMainFrame || !model.allowedSites.contains(site) { block(url, popup: true) }
+                // Same rule as createWebViewWith, so an allowed sign-in popup shows no chip.
+                let allowed = NavigationGuard(suffix: .bundled).allows(.init(
+                    destination: url, current: model.url, mainFrame: message.frameInfo.isMainFrame, popup: true,
+                    gestureAge: Date().timeIntervalSince(model.lastGestureTime), allowedSites: model.allowedSites))
+                if !allowed { block(url, popup: true) }
                 return
             }
             if message.name == "irisVideo", let body = message.body as? [String: Any],
@@ -123,11 +141,27 @@ struct WebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                      for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-            if let url = navigationAction.request.url {
-                if permitted(navigationAction, popup: true) { model.openWindow?(url) }
-                else { block(url, popup: true) }
-            }
-            return nil
+            guard let url = navigationAction.request.url else { return nil }
+            guard permitted(navigationAction, popup: true) else { block(url, popup: true); return nil }
+            guard let settings, let openWindow = model.openWindow else { return nil }
+            // Return a real web view so the page keeps window.opener; sign-in popups report back through it.
+            let popup = BrowserModel()
+            let coordinator = Coordinator(model: popup)
+            let view = WebView.makeWebView(configuration, coordinator: coordinator, settings: settings)
+            popup.isInitializing = false
+            popup.requestedURL = url
+            // The guard already approved this request; treat it like an address-bar load in the popup.
+            popup.nativeDestination = url
+            popup.popup = (view, coordinator)
+            settings.blocker.register(view, settings: settings)
+            let request = WindowRequest(url: url)
+            BrowserModel.pendingPopups[request.id] = popup
+            openWindow(request)
+            return view
+        }
+
+        func webViewDidClose(_ webView: WKWebView) {
+            model.closeWindow?()
         }
 
         private func permitted(_ action: WKNavigationAction, popup: Bool = false) -> Bool {

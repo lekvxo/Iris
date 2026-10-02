@@ -3,14 +3,21 @@ import SwiftData
 
 struct BrowserWindow: View {
     let initialURL: URL?
-    @State private var model = BrowserModel()
+    @State private var model: BrowserModel
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
     @Environment(SettingsStore.self) private var settings
     @State private var showingSettings = false
     @State private var showingSaved = false
     @State private var confirmingRemoval: SavedSite?
     @Query private var savedSites: [SavedSite]
     @SceneStorage("lastURL") private var lastURL: String?
+
+    init(initialURL: URL?, popupID: UUID? = nil) {
+        self.initialURL = initialURL
+        // A popup window adopts the model its opener prepared; later inits find nothing and are discarded.
+        _model = State(initialValue: popupID.flatMap { BrowserModel.pendingPopups.removeValue(forKey: $0) } ?? BrowserModel())
+    }
 
     var body: some View {
         // A restored window resumes where the user left it, not at the link that opened it.
@@ -52,13 +59,13 @@ struct BrowserWindow: View {
                             .lineLimit(1)
                         Button("Open once") {
                             model.blocked = nil
-                            if blocked.popup { model.openWindow?(blocked.url) } else { model.load(blocked.url) }
+                            if blocked.popup { model.openWindow?(WindowRequest(url: blocked.url)) } else { model.load(blocked.url) }
                         }.hoverEffect()
                         Button("Always allow on this site") {
                             model.allowedSites.insert(blocked.sourceSite)
                             settings.allowNavigation(on: blocked.sourceSite, allow: true)
                             model.blocked = nil
-                            if blocked.popup { model.openWindow?(blocked.url) } else { model.load(blocked.url) }
+                            if blocked.popup { model.openWindow?(WindowRequest(url: blocked.url)) } else { model.load(blocked.url) }
                         }.hoverEffect().disabled(blocked.sourceSite.isEmpty)
                         Button("Dismiss", systemImage: "xmark") { model.blocked = nil }
                             .labelStyle(.iconOnly).hoverEffect()
@@ -139,7 +146,8 @@ struct BrowserWindow: View {
                 if let url { lastURL = url.absoluteString }
             }
             .onAppear {
-                model.openWindow = { openWindow(id: "browser", value: WindowRequest(url: $0)) }
+                model.openWindow = { openWindow(id: "browser", value: $0) }
+                model.closeWindow = { dismissWindow() }
                 model.allowedSites = settings.navigationSites
             }
             .onChange(of: settings.navigationSites) { _, sites in model.allowedSites = sites }

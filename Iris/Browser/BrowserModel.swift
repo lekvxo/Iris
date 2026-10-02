@@ -12,7 +12,11 @@ final class BrowserModel {
     var estimatedProgress = 0.0
     var error: String?
     @ObservationIgnored weak var webView: WKWebView?
-    @ObservationIgnored var openWindow: ((URL) -> Void)?
+    @ObservationIgnored var openWindow: ((WindowRequest) -> Void)?
+    @ObservationIgnored var closeWindow: (() -> Void)?
+    // A popup's web view, made by its opener, waiting for its window to adopt it.
+    @ObservationIgnored var popup: (view: WKWebView, coordinator: WebView.Coordinator)?
+    static var pendingPopups: [UUID: BrowserModel] = [:]
     @ObservationIgnored var lastLink: URL?
     @ObservationIgnored var lastGestureTime = Date.distantPast
     @ObservationIgnored var nativeDestination: URL?

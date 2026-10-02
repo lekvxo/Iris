@@ -55,4 +55,46 @@ import UIKit
         XCTAssertFalse(model.blocked?.popup ?? true)
         XCTAssertNotEqual(view.url?.host, "jump.example.net")
     }
+
+    func testAllowedPopupKeepsItsOpener() async throws {
+        let settings = SettingsStore()
+        let model = BrowserModel()
+        let coordinator = WebView.Coordinator(model: model)
+        let configuration = WKWebViewConfiguration()
+        let view = WebView.makeWebView(configuration, coordinator: coordinator, settings: settings)
+        view.frame = CGRect(x: 0, y: 0, width: 800, height: 600)
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        let host = UIViewController()
+        host.view = view
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        var requests: [WindowRequest] = []
+        model.openWindow = { requests.append($0) }
+        model.allowedSites = ["example.com"]
+        model.url = URL(string: "https://source.example.com")!
+        model.nativeArchiveDestination = model.url
+        view.loadHTMLString("<html><body id='fixture'>Opener</body></html>", baseURL: model.url)
+        for _ in 0..<150 {
+            if !view.isLoading, let exists = try? await view.evaluateJavaScript("!!document.getElementById('fixture')"), (exists as? Bool) == true { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        // evaluateJavaScript counts as a user gesture, so WebKit asks the delegate for a window.
+        let opened = try await view.evaluateJavaScript("window.popup = window.open('https://popup.example.net/'); window.popup !== null")
+        XCTAssertEqual(opened as? Bool, true, "The page must get a window handle back")
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertEqual(request.url.host, "popup.example.net")
+        let popup = try XCTUnwrap(BrowserModel.pendingPopups.removeValue(forKey: request.id))
+        let popupView = try XCTUnwrap(popup.popup?.view)
+        XCTAssertTrue(popup.webView === popupView)
+        XCTAssertTrue(popup.popup?.coordinator.model === popup)
+        XCTAssertFalse(popupView.configuration.userContentController === view.configuration.userContentController,
+                       "Popup script messages must reach the popup's own coordinator")
+        XCTAssertNil(model.blocked)
+        let popupCoordinator = try XCTUnwrap(popup.popup?.coordinator)
+        popup.popup = nil
+        WebView.dismantleUIView(popupView, coordinator: popupCoordinator)
+        window.isHidden = true
+        WebView.dismantleUIView(view, coordinator: coordinator)
+    }
 }

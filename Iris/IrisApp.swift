@@ -11,7 +11,7 @@ struct IrisApp: App {
             if ProcessInfo.processInfo.environment["IRIS_UNIT_TEST_HOST"] == "1" {
                 Color.clear
             } else {
-            BrowserWindow(initialURL: request?.url)
+            BrowserWindow(initialURL: request?.url, popupID: request?.id)
             }
             }
                 .environment(settings)

@@ -44,6 +44,14 @@ final class NavigationGuardTests: XCTestCase {
         XCTAssertTrue(guardPolicy.allows(.init(destination: target, current: source, popup: true, linkActivated: true, clickedLink: target, gestureAge: 0.2)))
         XCTAssertFalse(guardPolicy.allows(.init(destination: target, current: source, mainFrame: false, popup: true, linkActivated: true, clickedLink: target, gestureAge: 0.2)))
     }
+    func testSignInPopupNeedsRecentTap() {
+        let google = URL(string: "https://accounts.google.com/o/oauth2/auth")!
+        XCTAssertTrue(guardPolicy.allows(.init(destination: google, current: source, popup: true, gestureAge: 0.3)))
+        XCTAssertFalse(guardPolicy.allows(.init(destination: google, current: source, popup: true)))
+        XCTAssertFalse(guardPolicy.allows(.init(destination: google, current: source, popup: true, gestureAge: 5)))
+        XCTAssertFalse(guardPolicy.allows(.init(destination: google, current: source, mainFrame: false, popup: true, gestureAge: 0.3)))
+        XCTAssertFalse(guardPolicy.allows(.init(destination: URL(string: "https://ads.example.net")!, current: source, popup: true, gestureAge: 0.3)))
+    }
     func testExternalSchemesNeverOpen() {
         for url in ["javascript:alert(1)", "itms-apps://example.com", "file:///tmp/test"] {
             XCTAssertFalse(guardPolicy.allows(.init(destination: URL(string: url)!, current: source, native: true)))
