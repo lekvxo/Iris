@@ -13,5 +13,8 @@ final class PublicSuffixTests: XCTestCase {
         XCTAssertEqual(list.registrableDomain("WWW.APPLE.COM."), "apple.com")
         XCTAssertEqual(list.registrableDomain("localhost"), "localhost")
         XCTAssertEqual(list.registrableDomain("127.0.0.1"), "127.0.0.1")
+        let international = URL(string: "https://www.食狮.公司.cn")!.host!
+        let expected = URL(string: "https://食狮.公司.cn")!.host!
+        XCTAssertEqual(list.registrableDomain(international), expected)
     }
 }

@@ -18,9 +18,9 @@ struct PublicSuffix: Sendable {
         for line in text.components(separatedBy: .newlines) {
             let rule = line.trimmingCharacters(in: .whitespaces)
             guard !rule.isEmpty, !rule.hasPrefix("//") else { continue }
-            if rule.hasPrefix("!") { exceptions.insert(String(rule.dropFirst())) }
-            else if rule.hasPrefix("*.") { wildcard.insert(String(rule.dropFirst(2))) }
-            else { exact.insert(rule) }
+            if rule.hasPrefix("!") { exceptions.insert(Self.canonicalHost(String(rule.dropFirst()))) }
+            else if rule.hasPrefix("*.") { wildcard.insert(Self.canonicalHost(String(rule.dropFirst(2)))) }
+            else { exact.insert(Self.canonicalHost(rule)) }
         }
         self.exact = exact
         self.wildcard = wildcard
@@ -28,7 +28,7 @@ struct PublicSuffix: Sendable {
     }
 
     func registrableDomain(_ host: String) -> String {
-        let host = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        let host = Self.canonicalHost(host.trimmingCharacters(in: CharacterSet(charactersIn: ".")))
         let labels = host.split(separator: ".").map(String.init)
         guard labels.count > 1, !host.contains(":"), !labels.allSatisfy({ Int($0) != nil }) else { return host }
         var suffixLength = 1
@@ -42,5 +42,10 @@ struct PublicSuffix: Sendable {
             if index > 0, wildcard.contains(tail) { suffixLength = max(suffixLength, labels.count - index + 1) }
         }
         return labels.suffix(min(labels.count, suffixLength + 1)).joined(separator: ".")
+    }
+
+    private static func canonicalHost(_ host: String) -> String {
+        if host.utf8.allSatisfy({ $0 < 128 }) { return host.lowercased() }
+        return URL(string: "https://" + host)?.host?.lowercased() ?? host.lowercased()
     }
 }

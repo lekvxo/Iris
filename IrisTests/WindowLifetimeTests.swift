@@ -8,9 +8,10 @@ import WebKit
         weak var model: BrowserModel?
         weak var coordinator: WebView.Coordinator?
     }
-    func testFourWindowWebViewsReleaseAfterDismantling() {
-        var windows: [(WKWebView, BrowserModel, WebView.Coordinator)] = []
+    func testFourWindowWebViewsReleaseAfterDismantling() async {
         var references: [References] = []
+        autoreleasepool {
+        var windows: [(WKWebView, BrowserModel, WebView.Coordinator)] = []
         for _ in 0..<4 {
             let model = BrowserModel()
             let coordinator = WebView.Coordinator(model: model)
@@ -34,6 +35,12 @@ import WebKit
             XCTAssertTrue(coordinator.observations.isEmpty)
         }
         windows.removeAll()
+        }
+        // UIKit/WebKit release queued work on the next main run-loop turns.
+        for _ in 0..<50 {
+            if references.allSatisfy({ $0.view == nil }) { break }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
         for reference in references {
             XCTAssertNil(reference.view)
             XCTAssertNil(reference.model)

@@ -43,3 +43,6 @@ schemes:
         Iris: all
     test:
       targets: [IrisTests]
+      environmentVariables:
+        IRIS_UNIT_TEST_HOST: '1'
+        IRIS_LIVE_FILTERS: '0'

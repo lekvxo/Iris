@@ -15,6 +15,9 @@ struct WebView: UIViewRepresentable {
         configuration.allowsInlineMediaPlayback = true
         configuration.preferences.isElementFullscreenEnabled = true
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
+        configuration.userContentController.add(context.coordinator, name: "irisPopup")
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: ScriptSource.read("PopupProbe"), injectionTime: .atDocumentStart, forMainFrameOnly: false))
         configuration.userContentController.add(context.coordinator, contentWorld: .defaultClient, name: "irisGesture")
         configuration.userContentController.addUserScript(WKUserScript(
             source: ScriptSource.read("GestureProbe"), injectionTime: .atDocumentStart,
@@ -53,6 +56,7 @@ struct WebView: UIViewRepresentable {
         view.uiDelegate = nil
         view.configuration.userContentController.removeScriptMessageHandler(forName: "irisGesture", contentWorld: .defaultClient)
         view.configuration.userContentController.removeScriptMessageHandler(forName: "irisVideo")
+        view.configuration.userContentController.removeScriptMessageHandler(forName: "irisPopup")
         coordinator.observations.removeAll()
         coordinator.model.webView = nil
         coordinator.model.videoTask?.cancel()
@@ -75,6 +79,13 @@ struct WebView: UIViewRepresentable {
         init(model: BrowserModel) { self.model = model }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "irisPopup", let body = message.body as? [String: Any],
+               let value = body["url"] as? String, let url = URL(string: value),
+               ["http", "https"].contains(url.scheme), url.host != nil {
+                let site = model.url?.host.map(PublicSuffix.bundled.registrableDomain) ?? ""
+                if !message.frameInfo.isMainFrame || !model.allowedSites.contains(site) { block(url, popup: true) }
+                return
+            }
             if message.name == "irisVideo", let body = message.body as? [String: Any],
                let id = body["id"] as? String, let src = body["src"] as? String {
                 let video = VideoDescriptor(id: id, source: src, manifest: body["manifest"] as? String,
