@@ -3,7 +3,17 @@ import WebKit
 
 extension BrowserModel {
     func openArchive(_ site: SavedSite, settings: SettingsStore) async {
-        // The next task wires the archive load to the navigation guard.
+        guard let name = site.archiveFileName, let url = URL(string: site.url), let view = webView else { return }
+        do {
+            let data = try await settings.archives.read(name)
+            guard webView === view else { return }
+            error = nil
+            nativeArchiveDestination = url
+            settings.blocker.apply(to: view, destination: url)
+            view.load(data, mimeType: "application/x-webarchive", characterEncodingName: "utf-8", baseURL: url)
+            site.lastOpened = Date()
+            settings.save()
+        } catch { self.error = "Unable to open offline copy. \(error.localizedDescription)" }
     }
 
     func saveOffline(existing: SavedSite?, settings: SettingsStore) async {

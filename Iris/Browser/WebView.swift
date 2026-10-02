@@ -103,6 +103,8 @@ struct WebView: UIViewRepresentable {
 
         private func permitted(_ action: WKNavigationAction, popup: Bool = false) -> Bool {
             guard let url = action.request.url else { return false }
+            if !popup, action.sourceFrame.isMainFrame, let archive = model.nativeArchiveDestination,
+               url == archive || url.absoluteString == "about:blank" { return true }
             return NavigationGuard(suffix: .bundled).allows(.init(
                 destination: url, current: model.url,
                 mainFrame: action.sourceFrame.isMainFrame, popup: popup,
@@ -126,6 +128,7 @@ struct WebView: UIViewRepresentable {
             guard let target = action.targetFrame else { decisionHandler(.allow); return }
             guard target.isMainFrame else { decisionHandler(.allow); return }
             let allowed = permitted(action)
+            model.nativeArchiveDestination = nil
             if model.nativeDestination == action.request.url { model.nativeDestination = nil }
             if model.serverRedirectDestination == action.request.url { model.serverRedirectDestination = nil }
             if allowed {
