@@ -12,6 +12,8 @@ final class BrowserModel {
     var error: String?
     @ObservationIgnored weak var webView: WKWebView?
     @ObservationIgnored var openWindow: ((URL) -> Void)?
+    @ObservationIgnored var lastLink: URL?
+    @ObservationIgnored var lastGestureTime = Date.distantPast
 
     func load(_ url: URL) {
         error = nil

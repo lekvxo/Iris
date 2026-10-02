@@ -14,6 +14,10 @@ struct WebView: UIViewRepresentable {
         configuration.allowsInlineMediaPlayback = true
         configuration.preferences.isElementFullscreenEnabled = true
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
+        configuration.userContentController.add(context.coordinator, contentWorld: .defaultClient, name: "irisGesture")
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: ScriptSource.read("GestureProbe"), injectionTime: .atDocumentStart,
+            forMainFrameOnly: true, in: .defaultClient))
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.allowsBackForwardNavigationGestures = true
         view.navigationDelegate = context.coordinator
@@ -30,14 +34,22 @@ struct WebView: UIViewRepresentable {
         view.stopLoading()
         view.navigationDelegate = nil
         view.uiDelegate = nil
+        view.configuration.userContentController.removeScriptMessageHandler(forName: "irisGesture", contentWorld: .defaultClient)
         coordinator.observations.removeAll()
         coordinator.model.webView = nil
     }
 
-    @MainActor final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
+    @MainActor final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         let model: BrowserModel
         var observations: [NSKeyValueObservation] = []
         init(model: BrowserModel) { self.model = model }
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == "irisGesture", message.frameInfo.isMainFrame,
+                  let body = message.body as? [String: Any] else { return }
+            model.lastLink = (body["href"] as? String).flatMap(URL.init(string:))
+            model.lastGestureTime = Date()
+        }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             report(error)
