@@ -112,7 +112,12 @@ struct WebView: UIViewRepresentable {
         private func report(_ error: Error) {
             permittedNavigation = nil
             model.serverRedirectDestination = nil
-            guard (error as NSError).code != NSURLErrorCancelled else { return }
+            let error = error as NSError
+            guard error.code != NSURLErrorCancelled else { return }
+            // 102 is WebKit's "frame load interrupted", sent when a link is a download.
+            guard !(error.domain == "WebKitErrorDomain" && error.code == 102) else { return }
+            // Try again should retry the page that failed, not the last typed address.
+            if let failed = error.userInfo[NSURLErrorFailingURLErrorKey] as? URL { model.requestedURL = failed }
             model.error = error.localizedDescription
         }
 
@@ -169,6 +174,7 @@ struct WebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            model.error = nil
             model.video = nil
             model.videoError = nil
             permittedNavigation = permittedStart ? navigation : nil
