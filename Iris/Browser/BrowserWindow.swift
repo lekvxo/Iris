@@ -10,10 +10,11 @@ struct BrowserWindow: View {
     @State private var showingSettings = false
     @State private var showingSaved = false
     @Query private var savedSites: [SavedSite]
-    @SceneStorage("lastURL") private var lastURL = "https://www.google.com"
+    @SceneStorage("lastURL") private var lastURL: String?
 
     var body: some View {
-        WebView(model: model, initialURL: initialURL ?? URL(string: lastURL) ?? URL(string: "https://www.google.com")!, settings: settings)
+        // A restored window resumes where the user left it, not at the link that opened it.
+        WebView(model: model, initialURL: lastURL.flatMap(URL.init(string:)) ?? initialURL ?? URL(string: "https://www.google.com")!, settings: settings)
             .overlay {
                 if settings.blocker.isUpdating && !settings.blocker.isReady && model.url == nil {
                     ProgressView("Preparing content blocking…").padding(24).glassBackgroundEffect()
@@ -128,7 +129,7 @@ struct BrowserWindow: View {
                 if let url { lastURL = url.absoluteString }
             }
             .onAppear {
-                model.openWindow = { openWindow(id: "browser", value: $0) }
+                model.openWindow = { openWindow(id: "browser", value: WindowRequest(url: $0)) }
                 model.allowedSites = settings.navigationSites
             }
             .onChange(of: settings.navigationSites) { _, sites in model.allowedSites = sites }
