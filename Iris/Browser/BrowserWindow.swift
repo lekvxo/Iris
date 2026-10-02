@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct BrowserWindow: View {
     let initialURL: URL?
@@ -7,6 +8,7 @@ struct BrowserWindow: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(SettingsStore.self) private var settings
     @State private var showingSettings = false
+    @Query private var savedSites: [SavedSite]
     @SceneStorage("lastURL") private var lastURL = "https://www.google.com"
 
     var body: some View {
@@ -35,7 +37,16 @@ struct BrowserWindow: View {
                     }
                     AddressField(text: $address) { model.load(InputRouter.destination(for: address)) }
                         .frame(width: 420, height: 44)
-                    tool("Save", "star", disabled: true) {}
+                    Menu {
+                        Button("Save offline copy", systemImage: "arrow.down.doc") {
+                            Task { await model.saveOffline(existing: currentSavedSite, settings: settings) }
+                        }.disabled(model.isSavingOffline)
+                    } label: {
+                        Label(currentSavedSite == nil ? "Save site" : "Remove saved site",
+                              systemImage: currentSavedSite == nil ? "star" : "star.fill")
+                            .labelStyle(.iconOnly)
+                    } primaryAction: { toggleSave() }
+                    .disabled(model.url?.host == nil).hoverEffect()
                     tool("Saved sites", "book", disabled: true) {}
                     tool("Watch in Player", "play.rectangle",
                          disabled: model.isPreparingVideo || model.watchReason(native: settings.nativeVideo) != nil) {
@@ -53,6 +64,13 @@ struct BrowserWindow: View {
                 }
                 .padding(12)
                 .glassBackgroundEffect()
+                if let error = model.saveError {
+                    HStack {
+                        Text(error).font(.caption)
+                        Button("Dismiss", systemImage: "xmark") { model.saveError = nil }
+                            .labelStyle(.iconOnly).hoverEffect()
+                    }.padding(8).glassBackgroundEffect()
+                }
                 if let reason = model.videoError ?? model.watchReason(native: settings.nativeVideo), model.video != nil {
                     Text(reason).font(.caption).padding(8).glassBackgroundEffect()
                 } else if settings.nativeVideo, model.video?.descriptor.drm == true {
@@ -95,6 +113,28 @@ struct BrowserWindow: View {
                     PlayerScreen(session: session) { Task { await model.closePlayer() } }
                 }
             }
+    }
+
+    private var currentSavedSite: SavedSite? {
+        savedSites.first { $0.url == model.url?.absoluteString }
+    }
+
+    private func toggleSave() {
+        guard let url = model.url else { return }
+        if let site = currentSavedSite {
+            Task {
+                do {
+                    if let name = site.archiveFileName { try await settings.archives.delete(name) }
+                    settings.container.mainContext.delete(site)
+                    settings.save()
+                    model.saveError = settings.persistenceError
+                } catch { model.saveError = error.localizedDescription }
+            }
+        } else {
+            settings.container.mainContext.insert(SavedSite(url: url, title: model.title))
+            settings.save()
+            model.saveError = settings.persistenceError
+        }
     }
 
     private func tool(_ title: String, _ icon: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {

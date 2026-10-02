@@ -22,6 +22,8 @@ final class BrowserModel {
     var videoError: String?
     var isPreparingVideo = false
     var playerSession: PlayerSession?
+    var isSavingOffline = false
+    var saveError: String?
 
     func watchReason(native: Bool) -> String? {
         guard let video else { return "Play a video on the page to detect it" }
