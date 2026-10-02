@@ -23,6 +23,7 @@ final class BrowserModel {
     @ObservationIgnored var nativeArchiveDestination: URL?
     @ObservationIgnored var serverRedirectDestination: URL?
     var blocked: BlockedNavigation?
+    var blockingActivity = PageBlockingActivity()
     var allowedSites: Set<String> = []
     var video: VideoCandidate?
     var videoError: String?

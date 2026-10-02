@@ -45,6 +45,8 @@ import UIKit
         }
         XCTAssertEqual(model.blocked?.url.host, "popup.example.net")
         XCTAssertTrue(model.blocked?.popup == true)
+        XCTAssertEqual(model.blockingActivity.count, 1)
+        XCTAssertEqual(model.blockingActivity.items.first?.kind, .popup)
         model.blocked = nil
         _ = try await view.evaluateJavaScript("location.href = 'https://jump.example.net'; null")
         for _ in 0..<50 {
@@ -54,6 +56,15 @@ import UIKit
         XCTAssertEqual(model.blocked?.url.host, "jump.example.net")
         XCTAssertFalse(model.blocked?.popup ?? true)
         XCTAssertNotEqual(view.url?.host, "jump.example.net")
+        XCTAssertEqual(model.blockingActivity.count, 2, "A denied jump must not reset the source page's count")
+        XCTAssertEqual(model.blockingActivity.items.last?.kind, .redirect)
+        model.nativeArchiveDestination = model.url
+        view.loadHTMLString("<html><body id='next'>Next document</body></html>", baseURL: model.url)
+        for _ in 0..<150 {
+            if !view.isLoading, let exists = try? await view.evaluateJavaScript("!!document.getElementById('next')"), (exists as? Bool) == true { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertEqual(model.blockingActivity.count, 0, "A new document starts with its own activity")
     }
 
     func testAllowedPopupKeepsItsOpener() async throws {
@@ -91,6 +102,7 @@ import UIKit
         XCTAssertFalse(popupView.configuration.userContentController === view.configuration.userContentController,
                        "Popup script messages must reach the popup's own coordinator")
         XCTAssertNil(model.blocked)
+        XCTAssertEqual(model.blockingActivity.count, 0, "An allowed popup must not appear as blocked")
         let popupCoordinator = try XCTUnwrap(popup.popup?.coordinator)
         popup.popup = nil
         WebView.dismantleUIView(popupView, coordinator: popupCoordinator)

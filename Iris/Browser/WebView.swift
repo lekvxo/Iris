@@ -221,6 +221,7 @@ struct WebView: UIViewRepresentable {
         }
 
         private func block(_ url: URL, popup: Bool) {
+            model.blockingActivity.record(url, kind: popup ? .popup : .redirect)
             model.blocked = BlockedNavigation(url: url,
                 sourceSite: model.url?.host.map(PublicSuffix.bundled.registrableDomain) ?? "", popup: popup)
         }
@@ -273,6 +274,7 @@ struct WebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            model.blockingActivity.reset()
             historyDocumentID = nil
             historyURL = nil
             historyLoadAllowed = permittedStart

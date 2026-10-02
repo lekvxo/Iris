@@ -150,11 +150,7 @@ struct BrowserWindow: View {
                             else { await model?.prepareHandoff() }
                         }
                     }
-                    tool(settings.blockingActive(for: model.url) ? "Blocking on" : "Blocking off",
-                         settings.blockingActive(for: model.url) ? "shield.fill" : "shield.slash",
-                         disabled: model.url?.host == nil || !settings.blockingEnabled) {
-                        settings.toggleBlocking(for: model.url)
-                    }
+                    BlockingButton(model: model)
                     tool("Settings", "gear") { showingSettings = true }
                 }
                 .padding(12)
