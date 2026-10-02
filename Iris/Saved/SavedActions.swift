@@ -23,7 +23,7 @@ extension BrowserModel {
         defer { isSavingOffline = false }
         let site = existing ?? SavedSite(url: url, title: title)
         do {
-            let data = try await view.createWebArchiveData()
+            let data = try await view.irisArchiveData()
             guard webView === view, view.url == url else { throw SavedError.pageChanged }
             let name = try await settings.archives.write(data, id: site.id)
             if existing == nil { settings.container.mainContext.insert(site) }
