@@ -38,6 +38,12 @@ struct WebView: UIViewRepresentable {
         var observations: [NSKeyValueObservation] = []
         init(model: BrowserModel) { self.model = model }
 
+        func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                     for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+            if let url = navigationAction.request.url { model.openWindow?(url) }
+            return nil
+        }
+
         func observe(_ view: WKWebView) {
             observations = [
                 view.observe(\.url, options: [.new]) { [weak self] view, _ in
