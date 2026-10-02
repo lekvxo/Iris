@@ -1,5 +1,6 @@
 import SwiftUI
 import AppIntents
+import SwiftData
 
 @main
 struct IrisApp: App {

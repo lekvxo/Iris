@@ -98,7 +98,7 @@ struct WebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
-                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+                     decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
             // Subframe loads stay in their frame. New windows are checked by WKUIDelegate.
             guard let target = action.targetFrame else { decisionHandler(.allow); return }
             guard target.isMainFrame else { decisionHandler(.allow); return }

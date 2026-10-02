@@ -1,5 +1,6 @@
 import Observation
 import SwiftData
+import Foundation
 
 @MainActor @Observable
 final class SettingsStore {
@@ -9,6 +10,8 @@ final class SettingsStore {
 
     init() {
         do {
+            let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
             container = try ModelContainer(for: SitePermission.self)
             permissions = try container.mainContext.fetch(FetchDescriptor<SitePermission>(sortBy: [SortDescriptor(\.domain)]))
         } catch {
