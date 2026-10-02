@@ -36,12 +36,10 @@ final class BlockerEngineTests: XCTestCase {
         let list = try XCTUnwrap(compiled)
         let view = WKWebView(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
-        let window = UIWindow(windowScene: scene)
-        let host = UIViewController()
-        host.view = view
-        window.rootViewController = host
-        window.makeKeyAndVisible()
-        defer { window.isHidden = true }
+        // Mount beside the SwiftUI root view, without modifying UIHostingController's hierarchy.
+        let window = try XCTUnwrap(scene.windows.first(where: \.isKeyWindow))
+        window.addSubview(view)
+        defer { view.removeFromSuperview() }
         view.configuration.userContentController.add(list)
         let html = "<html><body><div class='advert' id='advert'>Ad</div></body></html>"
         view.loadHTMLString(html, baseURL: URL(string: "https://example.com")!)
@@ -57,7 +55,8 @@ final class BlockerEngineTests: XCTestCase {
     }
 
     @MainActor private func displayStyle(_ view: WKWebView) async throws -> String {
-        for _ in 0..<150 {
+        // A cold visionOS 27 WebContent/GPU launch can exceed the old 15-second fixture limit.
+        for _ in 0..<450 {
             if !view.isLoading, let result = try? await view.evaluateJavaScript("document.getElementById('advert') ? getComputedStyle(document.getElementById('advert')).display : null"),
                let text = result as? String { return text }
             try await Task.sleep(for: .milliseconds(100))

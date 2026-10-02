@@ -102,7 +102,7 @@ struct BrowserWindow: View {
                     tool("Watch in Player", "play.rectangle",
                          disabled: model.isPreparingVideo || model.watchReason(native: settings.nativeVideo) != nil) {
                         let native = settings.nativeVideo
-                        model.videoTask = Task { [weak model] in
+                        model.videoTask = Task { [weak model = model] in
                             if native { await model?.enterNativeFullscreen() }
                             else { await model?.prepareHandoff() }
                         }

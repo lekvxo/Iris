@@ -11,7 +11,7 @@ Native SwiftUI/WebKit browser for Max's Vision Pro. `project.yml` is the source 
 
 Run `Scripts/check-phase.sh final` to regenerate, build and test on the Apple Vision Pro simulator. Use `IRIS_LIVE_FILTERS=1 Scripts/check-phase.sh live` for the optional full seven-list network/conversion/WebKit compilation check. Normal unit tests make no live filter downloads.
 
-This Mac only has Xcode 26.6 and the visionOS 26.5 SDK/runtime. Checks used `IRIS_TEST_DEPLOYMENT=26.5`; the script temporarily generates a compatible test project, then regenerates the unchanged 27.0 configuration. **A build on Xcode 27 and testing on the actual headset are still required.** Homebrew could not be installed without administrator access, so this session generated the project with the official XcodeGen 2.46.0 release at `/tmp/iris-tools/xcodegen/bin/xcodegen` (`IRIS_XCODEGEN` can select that executable).
+This Mac now has Xcode 27.0, Swift 6.4 and the visionOS 27.0 SDK/runtime. Device and simulator SDK builds pass without build warnings, and all 26 tests pass on visionOS 27, including the live filter check. The test script selects the latest installed simulator OS. The paired headset runs visionOS 27.0.1; signing and headset acceptance checks remain. See `VALIDATION.md`. Homebrew could not be installed without administrator access, so this session generated the project with the official XcodeGen 2.46.0 release at `/tmp/iris-tools/xcodegen/bin/xcodegen` (`IRIS_XCODEGEN` can select that executable).
 
 ## Controls
 
