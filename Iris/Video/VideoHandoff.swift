@@ -5,7 +5,10 @@ extension BrowserModel {
     func closePlayer() async {
         guard let session = playerSession else { return }
         session.player.pause()
+        let time = session.player.currentTime().seconds
         playerSession = nil
+        guard webView?.url == session.pageURL else { return }
+        await returnToVideo(session.candidate, time: time, resume: session.wasPlaying)
     }
 
     func prepareHandoff() async {
