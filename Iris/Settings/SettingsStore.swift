@@ -5,6 +5,7 @@ import Foundation
 @MainActor @Observable
 final class SettingsStore {
     let container: ModelContainer
+    let history: HistoryStore
     var permissions: [SitePermission] = []
     var persistenceError: String?
     let blocker = BlockerController()
@@ -20,7 +21,7 @@ final class SettingsStore {
         }
     }
 
-    init() {
+    init(configuration: ModelConfiguration = ModelConfiguration(cloudKitDatabase: .none)) {
         let controller = blocker
         energy = EnergyPolicy { [weak controller] in controller?.setWorkAllowed($0) }
         do {
@@ -28,7 +29,8 @@ final class SettingsStore {
             try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
             // Browsing history and saved sites remain on this headset, without CloudKit.
             container = try ModelContainer(for: SitePermission.self, SavedSite.self, HistoryEntry.self,
-                                           configurations: ModelConfiguration(cloudKitDatabase: .none))
+                                           configurations: configuration)
+            history = HistoryStore(context: container.mainContext)
             permissions = try container.mainContext.fetch(FetchDescriptor<SitePermission>(sortBy: [SortDescriptor(\.domain)]))
         } catch {
             fatalError("Iris could not open its saved data: \(error.localizedDescription)")

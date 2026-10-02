@@ -89,6 +89,11 @@ struct WebView: UIViewRepresentable {
         private var videoPolicy: String?
         private var permittedStart = false
         private weak var permittedNavigation: WKNavigation?
+        private var historyLoadAllowed = false
+        private var historyOfflineLoad = false
+        private var historyPendingOfflineLoad = false
+        private var historyDocumentID: UUID?
+        private var historyURL: URL?
         init(model: BrowserModel) { self.model = model }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -126,6 +131,8 @@ struct WebView: UIViewRepresentable {
             report(error)
         }
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            historyDocumentID = nil
+            historyLoadAllowed = false
             model.invalidateVideo()
             model.video = nil
             model.videoError = nil
@@ -142,6 +149,7 @@ struct WebView: UIViewRepresentable {
         }
 
         private func report(_ error: Error) {
+            historyLoadAllowed = false
             permittedNavigation = nil
             model.serverRedirectDestination = nil
             let error = error as NSError
@@ -210,6 +218,7 @@ struct WebView: UIViewRepresentable {
             if model.nativeDestination == action.request.url { model.nativeDestination = nil }
             if model.serverRedirectDestination == action.request.url { model.serverRedirectDestination = nil }
             if allowed {
+                historyPendingOfflineLoad = loadingArchive
                 if !loadingArchive { model.archiveReplay = nil }
                 settings?.blocker.apply(to: webView, destination: action.request.url)
                 permittedStart = true
@@ -224,6 +233,10 @@ struct WebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            historyDocumentID = nil
+            historyURL = nil
+            historyLoadAllowed = permittedStart
+            historyOfflineLoad = historyPendingOfflineLoad
             model.invalidateVideo()
             model.error = nil
             model.video = nil
@@ -246,6 +259,26 @@ struct WebView: UIViewRepresentable {
             model.lastLink = nil
             videoPolicy = nil
             updateVideoPolicy(webView)
+            if historyLoadAllowed, !historyOfflineLoad, model.archiveReplay == nil,
+               model.error == nil, let url = webView.url, HistoryStore.canRecord(url) {
+                historyDocumentID = model.documentID
+                historyURL = url
+                settings?.history.record(url: url, title: webView.title ?? "")
+            }
+        }
+
+        private func historyURLChanged(_ view: WKWebView) {
+            guard !view.isLoading, historyDocumentID == model.documentID,
+                  model.archiveReplay == nil, let url = view.url,
+                  url != historyURL, HistoryStore.canRecord(url) else { return }
+            historyURL = url
+            settings?.history.record(url: url, title: view.title ?? "")
+        }
+
+        private func historyTitleChanged(_ view: WKWebView) {
+            guard !view.isLoading, historyDocumentID == model.documentID,
+                  model.archiveReplay == nil, let url = view.url, url == historyURL else { return }
+            settings?.history.updateLatestTitle(url: url, title: view.title ?? "")
         }
 
         func updateVideoPolicy(_ view: WKWebView, interval: Int? = nil) {
@@ -260,10 +293,16 @@ struct WebView: UIViewRepresentable {
         func observe(_ view: WKWebView) {
             observations = [
                 view.observe(\.url, options: [.new]) { [weak self] view, _ in
-                    MainActor.assumeIsolated { self?.model.sync(from: view) }
+                    MainActor.assumeIsolated {
+                        self?.model.sync(from: view)
+                        self?.historyURLChanged(view)
+                    }
                 },
                 view.observe(\.title, options: [.new]) { [weak self] view, _ in
-                    MainActor.assumeIsolated { self?.model.sync(from: view) }
+                    MainActor.assumeIsolated {
+                        self?.model.sync(from: view)
+                        self?.historyTitleChanged(view)
+                    }
                 },
                 view.observe(\.isLoading, options: [.new]) { [weak self] view, _ in
                     MainActor.assumeIsolated { self?.model.sync(from: view) }
