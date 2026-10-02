@@ -90,8 +90,11 @@ struct WebView: UIViewRepresentable {
                let id = body["id"] as? String, let src = body["src"] as? String {
                 let video = VideoDescriptor(id: id, source: src, manifest: body["manifest"] as? String,
                     time: body["time"] as? Double ?? 0, duration: body["duration"] as? Double,
-                    drm: body["drm"] as? Bool ?? false, nativeFullscreen: body["nativeFullscreen"] as? Bool ?? false)
-                model.video = VideoCandidate(descriptor: video, frame: message.frameInfo)
+                    drm: body["drm"] as? Bool ?? false, nativeFullscreen: body["nativeFullscreen"] as? Bool ?? false,
+                    isPlaying: body["playing"] as? Bool ?? false)
+                if VideoBridge.shouldReplace(model.video?.descriptor, with: video) {
+                    model.video = VideoCandidate(descriptor: video, frame: message.frameInfo)
+                }
                 return
             }
             guard message.name == "irisGesture", message.frameInfo.isMainFrame,

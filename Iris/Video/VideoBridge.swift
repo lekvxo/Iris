@@ -9,9 +9,14 @@ struct VideoDescriptor: Sendable {
     let duration: Double?
     let drm: Bool
     let nativeFullscreen: Bool
+    var isPlaying = false
 }
 
 enum VideoBridge {
+    static func shouldReplace(_ current: VideoDescriptor?, with candidate: VideoDescriptor) -> Bool {
+        guard let current else { return true }
+        return candidate.isPlaying || !current.isPlaying || current.id == candidate.id
+    }
     enum Classification: Equatable {
         case playable(URL)
         case unsupported(String)

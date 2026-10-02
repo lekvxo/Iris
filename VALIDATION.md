@@ -11,13 +11,13 @@ All requested phases built and ran their tests before proceeding. Checks used Xc
 | 2B | 15 |
 | 3 | 19 |
 | 4 | 22 |
-| 5 / final | 25 |
+| 5 / final | 25 local + 1 live filter check |
 
-Final command: `IRIS_XCODEGEN=/tmp/iris-tools/xcodegen/bin/xcodegen IRIS_TEST_DEPLOYMENT=26.5 IRIS_LIVE_FILTERS=1 Scripts/check-phase.sh final`.
+Local suite: `IRIS_XCODEGEN=/tmp/iris-tools/xcodegen/bin/xcodegen IRIS_TEST_DEPLOYMENT=26.5 Scripts/check-phase.sh final`. The optional live check was also run successfully using `IRIS_LIVE_FILTERS=1`; it is skipped by normal offline test runs.
 
-Final result: build succeeded with no compiler/build warnings; 25 tests passed with zero failures. The live network check downloaded all seven filter sources, converted 155,281 compatible rules into eight shards in 2.52 seconds, and compiled them in WebKit in 6.48 seconds on this Mac's simulator. Cached identifiers were looked up successfully. These timings are not headset performance measurements.
+Final result: build succeeded with no compiler/build warnings; 25 local tests passed with zero failures, plus the successful live filter check. The live network check downloaded all seven filter sources, converted 155,281 compatible rules into eight shards in 2.52 seconds, and compiled them in WebKit in 6.48 seconds on this Mac's simulator. Cached identifiers were looked up successfully. These timings are not headset performance measurements.
 
-Verified behavior includes URL/search routing and encoding; Public Suffix List wildcard, exception, private suffix and international-domain handling; navigation policy and real WebKit delegate registration; page-world inability to forge gesture messages; scripted popup reporting and cross-site jump cancellation; WebKit cosmetic blocking and rule removal; media/DRM/MSE classification; cookie scope; SwiftData reopen/rename/delete; atomic archive storage and path validation; guarded webarchive replay; release of four web views and their coordinators/models.
+Verified behavior includes URL/search routing and encoding; Public Suffix List wildcard, exception, private suffix and international-domain handling; navigation policy and real WebKit delegate registration; page-world inability to forge gesture messages; scripted popup reporting and cross-site jump cancellation; WebKit cosmetic blocking and rule removal; media/DRM/MSE classification and playing-frame selection; cookie scope; SwiftData reopen/rename/delete; atomic archive storage and path validation; guarded webarchive replay; release of four web views and their coordinators/models. A production simulator launch loaded Google, displayed the ornament, and persisted all eight compiled filter shards before browsing.
 
 Simulator WebKit emits process-suspension diagnostics when fixture windows close; these are runtime system logs, not compiler warnings or failed tests.
 

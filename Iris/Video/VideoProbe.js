@@ -17,7 +17,8 @@
             duration: Number.isFinite(video.duration) ? video.duration : null,
             drm: encrypted.has(video) || !!video.mediaKeys,
             manifest: Date.now() - manifestAt < 30000 ? manifest : null,
-            nativeFullscreen: typeof video.webkitEnterFullscreen === 'function' || typeof video.requestFullscreen === 'function'
+            nativeFullscreen: typeof video.webkitEnterFullscreen === 'function' || typeof video.requestFullscreen === 'function',
+            playing: !video.paused && !video.ended
         });
     }
     function note(raw) {
@@ -47,7 +48,7 @@
     document.addEventListener('encrypted', event => {
         if (event.target instanceof HTMLVideoElement) { encrypted.add(event.target); report(event.target); }
     }, true);
-    for (const event of ['loadedmetadata', 'durationchange', 'timeupdate']) {
+    for (const event of ['loadedmetadata', 'durationchange', 'timeupdate', 'pause', 'ended']) {
         document.addEventListener(event, e => {
             if (e.target instanceof HTMLVideoElement && (!active || active === e.target)) report(e.target);
         }, true);

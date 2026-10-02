@@ -18,6 +18,15 @@ final class VideoBridgeTests: XCTestCase {
         if case .playable = VideoBridge.classify(video("blob:https://example.com/id")) { XCTFail("Unsupported MSE was accepted") }
         if case .playable = VideoBridge.classify(video("blob:https://example.com/id", manifest: "https://example.com/video.mp4")) { XCTFail("Unrelated MP4 was accepted") }
     }
+    func testPlayingIframeVideoIsNotReplacedByIdlePreview() {
+        let playing = VideoDescriptor(id: "playing-frame", source: "https://example.com/video.mp4", manifest: nil, time: 10, duration: 100, drm: false, nativeFullscreen: true, isPlaying: true)
+        let idle = video("https://example.com/preview.mp4")
+        XCTAssertFalse(VideoBridge.shouldReplace(playing, with: idle))
+        XCTAssertTrue(VideoBridge.shouldReplace(idle, with: playing))
+        var paused = playing
+        paused.isPlaying = false
+        XCTAssertTrue(VideoBridge.shouldReplace(playing, with: paused))
+    }
     func testDRMAndNonHTTPAreNeverHandedOff() {
         for source in ["https://example.com/protected.mp4", "blob:https://example.com/id"] {
             if case .playable = VideoBridge.classify(video(source, manifest: "https://example.com/a.m3u8", drm: true)) { XCTFail("DRM was accepted") }
