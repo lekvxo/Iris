@@ -68,6 +68,16 @@ final class SettingsStore {
         save()
     }
 
+    // Removes a saved site and its offline copy. Returns an error message on failure.
+    func removeSaved(_ site: SavedSite) async -> String? {
+        do {
+            if let name = site.archiveFileName { try await archives.delete(name) }
+            container.mainContext.delete(site)
+            save()
+            return persistenceError
+        } catch { return error.localizedDescription }
+    }
+
     func save() {
         do { try container.mainContext.save(); persistenceError = nil }
         catch { persistenceError = error.localizedDescription }

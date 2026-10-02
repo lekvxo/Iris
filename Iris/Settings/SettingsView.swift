@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Environment(SettingsStore.self) private var settings
     @Environment(\.dismiss) private var dismiss
     @State private var clearingData = false
+    @State private var confirmingClear = false
     @State private var dataStatus: String?
     var body: some View {
         NavigationStack {
@@ -12,15 +13,20 @@ struct SettingsView: View {
                 Section("Browsing") {
                     Toggle("Ad and tracker blocking", isOn: Binding(get: { settings.blockingEnabled }, set: { settings.blockingEnabled = $0 }))
                     Button(clearingData ? "Clearing…" : "Clear website data", role: .destructive) {
-                        clearingData = true
-                        dataStatus = nil
-                        Task {
-                            await WKWebsiteDataStore.default().removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast)
-                            settings.blocker.applyToAll(reload: true)
-                            clearingData = false
-                            dataStatus = "Website data cleared"
-                        }
+                        confirmingClear = true
                     }.disabled(clearingData).hoverEffect()
+                    .confirmationDialog("Clear all website data?", isPresented: $confirmingClear) {
+                        Button("Clear data", role: .destructive) {
+                            clearingData = true
+                            dataStatus = nil
+                            Task {
+                                await WKWebsiteDataStore.default().removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast)
+                                settings.blocker.applyToAll(reload: true)
+                                clearingData = false
+                                dataStatus = "Website data cleared"
+                            }
+                        }
+                    } message: { Text("You will be signed out of every website.") }
                     Text("Clearing data signs you out of websites. Your saved sites and offline copies are kept.")
                         .font(.footnote).foregroundStyle(.secondary)
                     if let dataStatus { Text(dataStatus).font(.footnote) }

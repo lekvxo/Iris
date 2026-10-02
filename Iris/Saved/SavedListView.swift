@@ -10,6 +10,7 @@ struct SavedListView: View {
     @State private var renaming: SavedSite?
     @State private var newTitle = ""
     @State private var error: String?
+    @State private var deleting: SavedSite?
     private var filtered: [SavedSite] {
         sites.filter { search.isEmpty || $0.title.localizedCaseInsensitiveContains(search) || $0.url.localizedCaseInsensitiveContains(search) }
     }
@@ -31,7 +32,7 @@ struct SavedListView: View {
                             if site.archiveFileName != nil {
                                 Button("Open offline copy", systemImage: "doc") { openOffline(site) }
                             }
-                            Button("Delete", systemImage: "trash", role: .destructive) { delete(site) }
+                            Button("Delete", systemImage: "trash", role: .destructive) { deleting = site }
                         }
                 }
             }
@@ -49,20 +50,15 @@ struct SavedListView: View {
                 }
                 Button("Cancel", role: .cancel) { renaming = nil }
             }
+            .confirmationDialog("Delete saved site?", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                                presenting: deleting) { site in
+                Button("Delete", role: .destructive) { Task { error = await settings.removeSaved(site) } }
+            } message: { site in
+                Text(site.archiveFileName == nil ? site.title : "\(site.title) and its offline copy will be deleted.")
+            }
             .alert("Unable to update saved site", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
                 Button("OK") { error = nil }
             } message: { Text(error ?? "") }
         }.frame(width: 460, height: 540)
-    }
-
-    private func delete(_ site: SavedSite) {
-        Task {
-            do {
-                if let name = site.archiveFileName { try await settings.archives.delete(name) }
-                settings.container.mainContext.delete(site)
-                settings.save()
-                error = settings.persistenceError
-            } catch { self.error = error.localizedDescription }
-        }
     }
 }

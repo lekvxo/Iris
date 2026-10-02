@@ -8,6 +8,7 @@ struct BrowserWindow: View {
     @Environment(SettingsStore.self) private var settings
     @State private var showingSettings = false
     @State private var showingSaved = false
+    @State private var confirmingRemoval: SavedSite?
     @Query private var savedSites: [SavedSite]
     @SceneStorage("lastURL") private var lastURL: String?
 
@@ -84,6 +85,15 @@ struct BrowserWindow: View {
                             .labelStyle(.iconOnly)
                     } primaryAction: { toggleSave() }
                     .disabled(model.url?.host == nil).hoverEffect()
+                    .confirmationDialog("Remove saved site?", isPresented: Binding(get: { confirmingRemoval != nil },
+                                                                                   set: { if !$0 { confirmingRemoval = nil } }),
+                                        presenting: confirmingRemoval) { site in
+                        Button("Remove", role: .destructive) {
+                            Task { model.saveError = await settings.removeSaved(site) }
+                        }
+                    } message: { site in
+                        Text(site.archiveFileName == nil ? site.title : "\(site.title) and its offline copy will be deleted.")
+                    }
                     tool("Saved sites", "book", disabled: model.isInitializing) { showingSaved = true }
                         .popover(isPresented: $showingSaved) {
                             SavedListView { site in
@@ -148,14 +158,7 @@ struct BrowserWindow: View {
     private func toggleSave() {
         guard let url = model.url else { return }
         if let site = currentSavedSite {
-            Task {
-                do {
-                    if let name = site.archiveFileName { try await settings.archives.delete(name) }
-                    settings.container.mainContext.delete(site)
-                    settings.save()
-                    model.saveError = settings.persistenceError
-                } catch { model.saveError = error.localizedDescription }
-            }
+            confirmingRemoval = site
         } else {
             settings.container.mainContext.insert(SavedSite(url: url, title: model.title))
             settings.save()
