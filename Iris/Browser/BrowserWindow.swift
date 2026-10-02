@@ -28,8 +28,43 @@ struct BrowserWindow: View {
                     }.padding().glassBackgroundEffect()
                 }
             }
-            .ornament(attachmentAnchor: .scene(.top)) {
+            // Chips sit over the page so they never shift the toolbar under the user's gaze.
+            .overlay(alignment: .top) {
                 VStack(spacing: 6) {
+                if let error = model.saveError {
+                    HStack {
+                        Text(error).font(.caption)
+                        Button("Dismiss", systemImage: "xmark") { model.saveError = nil }
+                            .labelStyle(.iconOnly).hoverEffect()
+                    }.padding(8).glassBackgroundEffect()
+                }
+                if let reason = model.videoError ?? model.watchReason(native: settings.nativeVideo), model.video != nil {
+                    Text(reason).font(.caption).padding(8).glassBackgroundEffect()
+                } else if settings.nativeVideo, model.video?.descriptor.drm == true {
+                    Text("Protected video uses website fullscreen").font(.caption).padding(8).glassBackgroundEffect()
+                }
+                if let blocked = model.blocked {
+                    HStack {
+                        Text("Blocked \(blocked.popup ? "popup" : "redirect") to \(blocked.url.host ?? "website")")
+                            .lineLimit(1)
+                        Button("Open once") {
+                            model.blocked = nil
+                            if blocked.popup { model.openWindow?(blocked.url) } else { model.load(blocked.url) }
+                        }.hoverEffect()
+                        Button("Always allow on this site") {
+                            model.allowedSites.insert(blocked.sourceSite)
+                            settings.allowNavigation(on: blocked.sourceSite, allow: true)
+                            model.blocked = nil
+                            if blocked.popup { model.openWindow?(blocked.url) } else { model.load(blocked.url) }
+                        }.hoverEffect().disabled(blocked.sourceSite.isEmpty)
+                        Button("Dismiss", systemImage: "xmark") { model.blocked = nil }
+                            .labelStyle(.iconOnly).hoverEffect()
+                    }.padding(10).glassBackgroundEffect()
+                }
+                }
+                .padding(.top, 12)
+            }
+            .ornament(attachmentAnchor: .scene(.top), contentAlignment: .bottom) {
                 HStack(spacing: 8) {
                     tool("Back", "chevron.left", disabled: !model.canGoBack) { model.webView?.goBack() }
                     tool("Forward", "chevron.right", disabled: !model.canGoForward) { model.webView?.goForward() }
@@ -80,40 +115,12 @@ struct BrowserWindow: View {
                 }
                 .padding(12)
                 .glassBackgroundEffect()
-                if model.isLoading {
-                    ProgressView(value: model.estimatedProgress)
-                        .progressViewStyle(.linear).frame(width: 820, height: 3)
-                }
-                if let error = model.saveError {
-                    HStack {
-                        Text(error).font(.caption)
-                        Button("Dismiss", systemImage: "xmark") { model.saveError = nil }
-                            .labelStyle(.iconOnly).hoverEffect()
-                    }.padding(8).glassBackgroundEffect()
-                }
-                if let reason = model.videoError ?? model.watchReason(native: settings.nativeVideo), model.video != nil {
-                    Text(reason).font(.caption).padding(8).glassBackgroundEffect()
-                } else if settings.nativeVideo, model.video?.descriptor.drm == true {
-                    Text("Protected video uses website fullscreen").font(.caption).padding(8).glassBackgroundEffect()
-                }
-                if let blocked = model.blocked {
-                    HStack {
-                        Text("Blocked \(blocked.popup ? "popup" : "redirect") to \(blocked.url.host ?? "website")")
-                            .lineLimit(1)
-                        Button("Open once") {
-                            model.blocked = nil
-                            if blocked.popup { model.openWindow?(blocked.url) } else { model.load(blocked.url) }
-                        }.hoverEffect()
-                        Button("Always allow on this site") {
-                            model.allowedSites.insert(blocked.sourceSite)
-                            settings.allowNavigation(on: blocked.sourceSite, allow: true)
-                            model.blocked = nil
-                            if blocked.popup { model.openWindow?(blocked.url) } else { model.load(blocked.url) }
-                        }.hoverEffect().disabled(blocked.sourceSite.isEmpty)
-                        Button("Dismiss", systemImage: "xmark") { model.blocked = nil }
-                            .labelStyle(.iconOnly).hoverEffect()
-                    }.padding(10).glassBackgroundEffect()
-                }
+                // Overlaid so showing progress never changes the toolbar's size.
+                .overlay(alignment: .bottom) {
+                    if model.isLoading {
+                        ProgressView(value: model.estimatedProgress)
+                            .progressViewStyle(.linear).frame(height: 3).padding(.horizontal, 28)
+                    }
                 }
             }
             .onChange(of: model.url) { _, url in
