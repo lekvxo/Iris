@@ -36,6 +36,10 @@ Known limit: WebKit has no public way to wipe an open window's back/forward list
 
 Done when: visited pages appear in History grouped by day, search finds them by title or address, each Clear option removes the right range, and history survives a relaunch.
 
+Implementation — October 2, 2026: P6.1–P6.5 are implemented. History has explicit CloudKit sync disabled, indexed local storage, a 500-row default fetch and database-backed search across older entries. Retention defaults to one calendar year and prunes at launch. A delayed title targets its recorded visit, so clearing today's visit cannot overwrite an older day's title. Navigation completion/failure is scoped to the current document. Clear ranges include their starting boundary and end at the moment of confirmation; All history also removes any future-dated rows left by clock changes.
+
+Validation: warning-free Xcode 27 / visionOS 27 simulator build; 48 tests ran, 47 passed and the optional live-filter test skipped. Tests include schema migration/reopening, local-day deduplication, daylight-saving grouping/clearing, search beyond 500 entries, launch pruning, real WebKit SPA/fragment/title/popup recording and blocked/failed/offline exclusions, and independent cookie/history clearing. Signed Release device build also passed without warnings. Headset acceptance is pending; Phase 7 has not started. Follow the Phase 6 additions in HEADSET_CHECKS.md before proceeding.
+
 ## Phase 7: Stronger ad protection
 
 Today Iris converts seven lists with `advancedBlocking: false` (`BlockerEngine.swift`), which leaves out uBO's scriptlets and advanced CSS. That's the main reason YouTube ads and anti-adblock walls get through.

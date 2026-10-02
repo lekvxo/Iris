@@ -1,6 +1,6 @@
 # Iris headset acceptance — PLAN.md §7
 
-H1–H4 are implemented and tested on the visionOS 27 simulator. H5's sustained measurement is pending. A signed Release build passed with Xcode 27; installation failed because the paired headset was locked. No headset performance, temperature or environment result is claimed.
+H1–H4 and Phase 6 history are implemented and tested on the visionOS 27 simulator. H5's sustained measurement is pending. The latest Phase 6 signed Release build passed with Xcode 27. The earlier installation attempt failed because the paired headset was locked; this history build has not been installed on it. No headset performance, temperature or environment result is claimed.
 
 Unlock and wear the paired headset, then install `/tmp/iris-headset-build/Build/Products/Release-xros/Iris.app` from Xcode or with `xcrun devicectl device install app --device 00008112-000C31EC2681A01E /tmp/iris-headset-build/Build/Products/Release-xros/Iris.app`. Keep `project.yml` as the source of truth; replace `YOUR_TEAM_ID` at `settings.base.DEVELOPMENT_TEAM` for future signed builds, or supply the team as a build-command override. This session's override was `F47GC3BYK3`.
 
@@ -19,6 +19,11 @@ One checklist, following §7's order:
 - [ ] §7.11: Saved sites survive relaunch. Wi-Fi-off archives open, reload and recover from a page-process stop using local data; rename/delete confirmations work.
 - [ ] §7.12: Clear website data signs sites out after confirmation; saved sites stay intact.
 - [ ] §7.13: Complete the 30-minute four-window profile below; confirm gaze/pinch and scrolling remain smooth, including native playback and background/foreground transitions.
+- [ ] §7.11 / P6.1–P6.3: Open Saved → History. Visit and revisit pages: one entry per exact address per local day, with newest visits first and correct day headings. Popup pages and YouTube's same-page URL changes appear; failed/blocked pages and offline copies do not.
+- [ ] §7.5, §7.11 / P6.3: Search by title and address, including mixed case. Tap a result to open it in this window; Delete removes only that visit. Switch back to Saved: saved sites and offline actions still work, with no additional toolbar button.
+- [ ] §7.12 / P6.4: Try Last hour, Today, Today and yesterday, and All history from the History tab and Settings. History clears while sign-in cookies/saved sites/offline copies remain. Clear website data signs you out while keeping history. Back/Forward still work in existing windows until they close.
+- [ ] §7.11 / P6.4–P6.5: Relaunch: visits and the retention choice persist. Default retention is 1 year; compare 1 month and Forever. Older entries prune on launch according to the chosen setting.
+- [ ] §7.13 / P6.3: Check search, scrolling and segment switching by gaze/pinch with four browser windows. Phase 7 waits for these Phase 6 headset checks.
 
 ## 30-minute measurement
 

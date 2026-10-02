@@ -15,8 +15,9 @@ final class HistoryStore {
         self.now = now
     }
 
-    func record(url: URL, title: String) {
-        guard Self.canRecord(url) else { return }
+    @discardableResult func record(url: URL, title: String) -> PersistentIdentifier? {
+        guard Self.canRecord(url) else { return nil }
+        var identifier: PersistentIdentifier?
         perform {
             let visit = now()
             guard let day = calendar.dateInterval(of: .day, for: visit) else { return }
@@ -27,18 +28,23 @@ final class HistoryStore {
             })
             fetch.fetchLimit = 1
             let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let entry = try context.fetch(fetch).first {
+            let entry: HistoryEntry
+            if let existing = try context.fetch(fetch).first {
+                entry = existing
                 entry.visitedAt = visit
                 if !name.isEmpty { entry.title = name }
             } else {
-                context.insert(HistoryEntry(url: url, title: name.isEmpty ? url.host ?? address : name, visitedAt: visit))
+                entry = HistoryEntry(url: url, title: name.isEmpty ? url.host ?? address : name, visitedAt: visit)
+                context.insert(entry)
             }
             try context.save()
+            identifier = entry.persistentModelID
         }
+        return identifier
     }
 
     // A delayed title must not recreate an entry that the user has just cleared.
-    func updateLatestTitle(url: URL, title: String) {
+    func updateLatestTitle(url: URL, title: String, expectedID: PersistentIdentifier? = nil) {
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard Self.canRecord(url), !name.isEmpty else { return }
         perform {
@@ -47,6 +53,8 @@ final class HistoryStore {
                                                       sortBy: [SortDescriptor(\.visitedAt, order: .reverse)])
             fetch.fetchLimit = 1
             guard let entry = try context.fetch(fetch).first, entry.title != name else { return }
+            // If today's visit was cleared, don't replace an older day's title instead.
+            guard expectedID == nil || entry.persistentModelID == expectedID else { return }
             entry.title = name
             try context.save()
         }

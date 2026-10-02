@@ -21,13 +21,44 @@ import WebKit
         _ = try await view.evaluateJavaScript("document.title = 'Late title'; null")
         try await wait { self.entries(settings).contains { $0.title == "Late title" } }
         XCTAssertEqual(entries(settings).first { $0.url.hasSuffix("/second") }?.visitedAt, secondVisit)
+        _ = try await view.evaluateJavaScript("location.hash = 'part'; null")
+        try await wait { self.entries(settings).contains { $0.url.hasSuffix("/second#part") } }
         _ = try await view.evaluateJavaScript("location.href = 'https://denied.example.net/'; null")
         try await wait { model.blocked != nil }
-        XCTAssertEqual(entries(settings).count, 2)
+        XCTAssertEqual(entries(settings).count, 3)
         XCTAssertFalse(entries(settings).contains { $0.host == "denied.example.net" })
         model.load(URL(string: "http://127.0.0.1:1/failure")!)
         try await wait { model.error != nil }
-        XCTAssertEqual(entries(settings).count, 2)
+        XCTAssertEqual(entries(settings).count, 3)
+        XCTAssertNil(settings.history.error)
+    }
+
+    func testAllowedPopupRecordsInSharedHistory() async throws {
+        let settings = SettingsStore(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
+        let (model, coordinator, view) = try fixture(settings)
+        defer { view.removeFromSuperview(); WebView.dismantleUIView(view, coordinator: coordinator) }
+        let base = URL(string: "https://history.example.com/opener")!
+        model.url = base
+        model.nativeDestination = base
+        model.allowedSites = ["example.com"]
+        var requests: [WindowRequest] = []
+        model.openWindow = { requests.append($0) }
+        view.loadHTMLString("<html><title>Opener</title><body>Popup history fixture</body></html>", baseURL: base)
+        try await wait { self.entries(settings).count == 1 }
+        _ = try await view.evaluateJavaScript("window.open('https://history.example.com/popup'); null")
+        try await wait { !requests.isEmpty }
+        let popup = try XCTUnwrap(BrowserModel.adoptPopup(requests[0].id))
+        let child = try XCTUnwrap(popup.popup?.view)
+        let childCoordinator = try XCTUnwrap(popup.popup?.coordinator)
+        popup.popup = nil
+        child.stopLoading()
+        child.frame = view.frame
+        view.window?.addSubview(child)
+        defer { child.removeFromSuperview(); WebView.dismantleUIView(child, coordinator: childCoordinator) }
+        let address = URL(string: "https://history.example.com/popup-fixture")!
+        popup.nativeDestination = address
+        child.loadHTMLString("<html><title>Popup page</title><body>Popup history</body></html>", baseURL: address)
+        try await wait { self.entries(settings).contains { $0.url == address.absoluteString && $0.title == "Popup page" } }
         XCTAssertNil(settings.history.error)
     }
 

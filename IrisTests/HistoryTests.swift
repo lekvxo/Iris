@@ -169,4 +169,60 @@ final class HistoryTests: XCTestCase {
         XCTAssertEqual(entry.host, "example.com")
         XCTAssertEqual(entry.visitedAt, visit)
     }
+
+    @MainActor func testLateTitleCannotChangeAnOlderDayAfterPartialClear() throws {
+        let container = try memoryContainer()
+        var visit = Date(timeIntervalSince1970: 1_800_000_000)
+        let history = HistoryStore(context: container.mainContext, now: { visit })
+        let url = URL(string: "https://example.com/page")!
+        history.record(url: url, title: "Older visit")
+        visit = visit.addingTimeInterval(172800)
+        let currentID = try XCTUnwrap(history.record(url: url, title: "Current visit"))
+        history.clear(.today)
+        history.updateLatestTitle(url: url, title: "Delayed current title", expectedID: currentID)
+        XCTAssertEqual(try container.mainContext.fetch(FetchDescriptor<HistoryEntry>()).map(\.title), ["Older visit"])
+    }
+
+    @MainActor func testExactAddressesRemainSeparateAndEmptyTitleKeepsName() throws {
+        let container = try memoryContainer()
+        let history = HistoryStore(context: container.mainContext)
+        let url = URL(string: "https://example.com/page?v=1")!
+        history.record(url: url, title: "Known title")
+        history.record(url: url, title: "  \n  ")
+        history.record(url: URL(string: "https://example.com/page?v=2")!, title: "Other query")
+        let rows = try container.mainContext.fetch(FetchDescriptor<HistoryEntry>())
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows.first { $0.url == url.absoluteString }?.title, "Known title")
+    }
+
+    @MainActor func testSettingsPrunesOnLaunchAndKeepsSavedSitesAndExceptions() throws {
+        let directory = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let schema = Schema([SavedSite.self, SitePermission.self, HistoryEntry.self])
+        let configuration = ModelConfiguration(schema: schema, url: directory.appendingPathComponent("test.store"), cloudKitDatabase: .none)
+        let suite = "IrisLaunchHistory-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let now = Date()
+        do {
+            let container = try ModelContainer(for: schema, configurations: [configuration])
+            container.mainContext.insert(HistoryEntry(url: URL(string: "https://example.com/old")!, title: "Old", visitedAt: now.addingTimeInterval(-800 * 86400)))
+            container.mainContext.insert(HistoryEntry(url: URL(string: "https://example.com/new")!, title: "New", visitedAt: now))
+            container.mainContext.insert(SavedSite(url: URL(string: "https://example.com/saved")!, title: "Saved"))
+            container.mainContext.insert(SitePermission(domain: "example.com", allowsNavigation: true))
+            try container.mainContext.save()
+        }
+        defaults.set(HistoryRetention.forever.rawValue, forKey: "historyRetention")
+        do {
+            let settings = SettingsStore(configuration: configuration, defaults: defaults)
+            XCTAssertEqual(try settings.container.mainContext.fetch(FetchDescriptor<HistoryEntry>()).count, 2)
+            settings.historyRetention = .year
+        }
+        let reopened = SettingsStore(configuration: configuration, defaults: defaults)
+        XCTAssertEqual(try reopened.container.mainContext.fetch(FetchDescriptor<HistoryEntry>()).map(\.title), ["New"])
+        XCTAssertEqual(try reopened.container.mainContext.fetch(FetchDescriptor<SavedSite>()).map(\.title), ["Saved"])
+        XCTAssertTrue(reopened.navigationSites.contains("example.com"))
+        XCTAssertNil(reopened.history.error)
+    }
 }

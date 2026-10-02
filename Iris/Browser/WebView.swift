@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import SwiftData
 
 struct WebView: UIViewRepresentable {
     let model: BrowserModel
@@ -94,6 +95,9 @@ struct WebView: UIViewRepresentable {
         private var historyPendingOfflineLoad = false
         private var historyDocumentID: UUID?
         private var historyURL: URL?
+        private var historyEntryID: PersistentIdentifier?
+        private weak var historyNavigation: WKNavigation?
+        private var historyLoadingDocumentID: UUID?
         init(model: BrowserModel) { self.model = model }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -125,10 +129,18 @@ struct WebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            historyFailed(navigation)
             report(error)
         }
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            historyFailed(navigation)
             report(error)
+        }
+        private func historyFailed(_ navigation: WKNavigation?) {
+            // A canceled old request can report failure after its replacement started.
+            guard navigation === historyNavigation else { return }
+            historyLoadAllowed = false
+            historyDocumentID = nil
         }
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
             historyDocumentID = nil
@@ -149,7 +161,6 @@ struct WebView: UIViewRepresentable {
         }
 
         private func report(_ error: Error) {
-            historyLoadAllowed = false
             permittedNavigation = nil
             model.serverRedirectDestination = nil
             let error = error as NSError
@@ -238,6 +249,8 @@ struct WebView: UIViewRepresentable {
             historyLoadAllowed = permittedStart
             historyOfflineLoad = historyPendingOfflineLoad
             model.invalidateVideo()
+            historyNavigation = navigation
+            historyLoadingDocumentID = model.documentID
             model.error = nil
             model.video = nil
             model.videoError = nil
@@ -259,11 +272,12 @@ struct WebView: UIViewRepresentable {
             model.lastLink = nil
             videoPolicy = nil
             updateVideoPolicy(webView)
-            if historyLoadAllowed, !historyOfflineLoad, model.archiveReplay == nil,
+            if navigation === historyNavigation, historyLoadingDocumentID == model.documentID,
+               historyLoadAllowed, !historyOfflineLoad, model.archiveReplay == nil,
                model.error == nil, let url = webView.url, HistoryStore.canRecord(url) {
                 historyDocumentID = model.documentID
                 historyURL = url
-                settings?.history.record(url: url, title: webView.title ?? "")
+                historyEntryID = settings?.history.record(url: url, title: webView.title ?? "")
             }
         }
 
@@ -272,13 +286,14 @@ struct WebView: UIViewRepresentable {
                   model.archiveReplay == nil, let url = view.url,
                   url != historyURL, HistoryStore.canRecord(url) else { return }
             historyURL = url
-            settings?.history.record(url: url, title: view.title ?? "")
+            historyEntryID = settings?.history.record(url: url, title: view.title ?? "")
         }
 
         private func historyTitleChanged(_ view: WKWebView) {
             guard !view.isLoading, historyDocumentID == model.documentID,
-                  model.archiveReplay == nil, let url = view.url, url == historyURL else { return }
-            settings?.history.updateLatestTitle(url: url, title: view.title ?? "")
+                  model.archiveReplay == nil, let url = view.url, url == historyURL,
+                  let historyEntryID else { return }
+            settings?.history.updateLatestTitle(url: url, title: view.title ?? "", expectedID: historyEntryID)
         }
 
         func updateVideoPolicy(_ view: WKWebView, interval: Int? = nil) {

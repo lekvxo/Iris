@@ -3,6 +3,7 @@ import SwiftData
 
 @Model
 final class HistoryEntry {
+    #Index<HistoryEntry>([\.url, \.visitedAt], [\.visitedAt])
     var url: String
     var title: String
     var host: String
