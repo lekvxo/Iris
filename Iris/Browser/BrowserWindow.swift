@@ -37,7 +37,10 @@ struct BrowserWindow: View {
                         .frame(width: 420, height: 44)
                     tool("Save", "star", disabled: true) {}
                     tool("Saved sites", "book", disabled: true) {}
-                    tool("Watch in Player", "play.rectangle", disabled: true) {}
+                    tool("Watch in Player", "play.rectangle",
+                         disabled: model.isPreparingVideo || model.watchReason(native: false) != nil) {
+                        Task { await model.prepareHandoff() }
+                    }
                     tool(settings.blockingActive(for: model.url) ? "Blocking on" : "Blocking off",
                          settings.blockingActive(for: model.url) ? "shield.fill" : "shield.slash",
                          disabled: model.url?.host == nil || !settings.blockingEnabled) {
@@ -47,6 +50,9 @@ struct BrowserWindow: View {
                 }
                 .padding(12)
                 .glassBackgroundEffect()
+                if let reason = model.videoError ?? model.watchReason(native: false), model.video != nil {
+                    Text(reason).font(.caption).padding(8).glassBackgroundEffect()
+                }
                 if let blocked = model.blocked {
                     HStack {
                         Text("Blocked \(blocked.popup ? "popup" : "redirect") to \(blocked.url.host ?? "website")")
@@ -77,6 +83,13 @@ struct BrowserWindow: View {
             }
             .onChange(of: settings.navigationSites) { _, sites in model.allowedSites = sites }
             .sheet(isPresented: $showingSettings) { SettingsView() }
+            .fullScreenCover(isPresented: Binding(get: { model.playerSession != nil }, set: { visible in
+                if !visible { Task { await model.closePlayer() } }
+            })) {
+                if let session = model.playerSession {
+                    PlayerScreen(session: session) { Task { await model.closePlayer() } }
+                }
+            }
     }
 
     private func tool(_ title: String, _ icon: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {

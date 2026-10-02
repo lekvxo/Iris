@@ -2,6 +2,12 @@ import AVFoundation
 import WebKit
 
 extension BrowserModel {
+    func closePlayer() async {
+        guard let session = playerSession else { return }
+        session.player.pause()
+        playerSession = nil
+    }
+
     func prepareHandoff() async {
         guard !isPreparingVideo, let candidate = video, let view = webView,
               case .playable(let source) = VideoBridge.classify(candidate.descriptor) else { return }
