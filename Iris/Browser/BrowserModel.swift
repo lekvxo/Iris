@@ -33,6 +33,7 @@ final class BrowserModel {
     var saveError: String?
     var isInitializing = true
     @ObservationIgnored var videoTask: Task<Void, Never>?
+    @ObservationIgnored var videoPreparationID: UUID?
     @ObservationIgnored var loadingAsset: AVURLAsset?
     @ObservationIgnored var requestedURL: URL?
 
@@ -57,6 +58,7 @@ final class BrowserModel {
     }
 
     func load(_ url: URL) {
+        invalidateVideo()
         error = nil
         requestedURL = url
         nativeDestination = url

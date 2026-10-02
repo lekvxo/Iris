@@ -4,9 +4,11 @@ import WebKit
 extension BrowserModel {
     func enterNativeFullscreen() async {
         guard !isPreparingVideo, let candidate = video, let view = webView else { return }
+        let preparationID = UUID()
+        videoPreparationID = preparationID
         isPreparingVideo = true
         videoError = nil
-        defer { isPreparingVideo = false }
+        defer { finishPreparation(preparationID) }
         do {
             _ = try await view.callAsyncJavaScript("""
                 const v = [...document.querySelectorAll('video')].find(v => v.dataset.irisVideo === id);
@@ -16,6 +18,7 @@ extension BrowserModel {
                 else throw new Error('No fullscreen API');
                 """, arguments: ["id": candidate.descriptor.id], in: candidate.frame, contentWorld: .page)
         } catch {
+            guard videoPreparationID == preparationID, !Task.isCancelled else { return }
             videoError = "Use the video's fullscreen control on the page. \(error.localizedDescription)"
         }
     }
@@ -32,9 +35,12 @@ extension BrowserModel {
     func prepareHandoff() async {
         guard !isPreparingVideo, let candidate = video, let view = webView,
               case .playable(let source) = VideoBridge.classify(candidate.descriptor) else { return }
+        let preparationID = UUID()
+        let pageURL = view.url
+        videoPreparationID = preparationID
         isPreparingVideo = true
         videoError = nil
-        defer { isPreparingVideo = false; loadingAsset = nil }
+        defer { finishPreparation(preparationID) }
         var paused = false
         var wasPlaying = false
         var time = candidate.descriptor.time
@@ -52,6 +58,7 @@ extension BrowserModel {
             paused = true
             let cookies = await view.configuration.websiteDataStore.httpCookieStore.allCookies()
             let userAgent = try await view.evaluateJavaScript("navigator.userAgent", in: candidate.frame, contentWorld: .page) as? String ?? ""
+            try validatePreparation(preparationID, candidate: candidate, view: view, pageURL: pageURL)
             let asset = AVURLAsset(url: source, options: [
                 AVURLAssetHTTPCookiesKey: Self.cookies(cookies, for: source),
                 AVURLAssetHTTPUserAgentKey: userAgent
@@ -60,24 +67,65 @@ extension BrowserModel {
             guard try await asset.load(.isPlayable), !(try await asset.load(.hasProtectedContent)) else {
                 throw VideoError.unsupported
             }
-            guard !Task.isCancelled, webView === view, video?.descriptor.id == candidate.descriptor.id else {
-                throw CancellationError()
-            }
             let item = AVPlayerItem(asset: asset)
             let metadata = AVMutableMetadataItem()
             metadata.identifier = .commonIdentifierTitle
             metadata.value = title as NSString
             metadata.extendedLanguageTag = "und"
             item.externalMetadata = [metadata]
-            let player = AVPlayer(playerItem: item)
-            let duration = try await asset.load(.duration).seconds
-            let start = time.isFinite ? max(0, duration.isFinite && duration > 0 ? min(time, duration) : time) : 0
-            if start > 0 { await player.seek(to: CMTime(seconds: start, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) }
-            playerSession = PlayerSession(player: player, candidate: candidate, wasPlaying: wasPlaying, pageURL: view.url)
+            try await completeHandoff(preparationID, candidate: candidate, view: view, pageURL: pageURL,
+                                      wasPlaying: wasPlaying) {
+                let player = AVPlayer(playerItem: item)
+                let duration = try await asset.load(.duration).seconds
+                let start = time.isFinite ? max(0, duration.isFinite && duration > 0 ? min(time, duration) : time) : 0
+                if start > 0 {
+                    await player.seek(to: CMTime(seconds: start, preferredTimescale: 600),
+                                      toleranceBefore: .zero, toleranceAfter: .zero)
+                }
+                return player
+            }
         } catch {
+            guard videoPreparationID == preparationID, webView === view, view.url == pageURL else { return }
             if !(error is CancellationError) { videoError = "Player could not open this source. \(error.localizedDescription)" }
             if paused { await returnToVideo(candidate, time: time, resume: wasPlaying) }
         }
+    }
+
+    // A canceled preparation may still finish an AVFoundation or WebKit callback.
+    // Its token must never clear or present a newer preparation's session.
+    func invalidateVideo() {
+        videoPreparationID = nil
+        videoTask?.cancel()
+        videoTask = nil
+        loadingAsset?.cancelLoading()
+        loadingAsset = nil
+        isPreparingVideo = false
+        playerSession?.player.pause()
+        playerSession = nil
+    }
+
+    private func finishPreparation(_ id: UUID) {
+        guard videoPreparationID == id else { return }
+        videoPreparationID = nil
+        isPreparingVideo = false
+        loadingAsset = nil
+    }
+
+    private func validatePreparation(_ id: UUID, candidate: VideoCandidate, view: WKWebView, pageURL: URL?) throws {
+        guard !Task.isCancelled, videoPreparationID == id, webView === view, view.url == pageURL,
+              video?.descriptor.id == candidate.descriptor.id,
+              video?.descriptor.source == candidate.descriptor.source,
+              video.map({ VideoBridge.classify($0.descriptor) }) == VideoBridge.classify(candidate.descriptor) else { throw CancellationError() }
+    }
+
+    func completeHandoff(_ id: UUID, candidate: VideoCandidate, view: WKWebView, pageURL: URL?,
+                         wasPlaying: Bool, makePlayer: () async throws -> AVPlayer) async throws {
+        try validatePreparation(id, candidate: candidate, view: view, pageURL: pageURL)
+        let player = try await makePlayer()
+        // In particular, validate after duration loading AND asynchronous seek.
+        do { try validatePreparation(id, candidate: candidate, view: view, pageURL: pageURL) }
+        catch { player.pause(); throw error }
+        playerSession = PlayerSession(player: player, candidate: candidate, wasPlaying: wasPlaying, pageURL: pageURL)
     }
 
     static func cookies(_ cookies: [HTTPCookie], for url: URL) -> [HTTPCookie] {

@@ -73,12 +73,7 @@ struct WebView: UIViewRepresentable {
         view.configuration.userContentController.removeScriptMessageHandler(forName: "irisPopup")
         coordinator.observations.removeAll()
         coordinator.model.webView = nil
-        coordinator.model.videoTask?.cancel()
-        coordinator.model.videoTask = nil
-        coordinator.model.loadingAsset?.cancelLoading()
-        coordinator.model.loadingAsset = nil
-        coordinator.model.playerSession?.player.pause()
-        coordinator.model.playerSession = nil
+        coordinator.model.invalidateVideo()
         coordinator.model.video = nil
         coordinator.model.openWindow = nil
         coordinator.model.closeWindow = nil
@@ -208,6 +203,7 @@ struct WebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            model.invalidateVideo()
             model.error = nil
             model.video = nil
             model.videoError = nil
