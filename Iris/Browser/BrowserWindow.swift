@@ -8,6 +8,7 @@ struct BrowserWindow: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(SettingsStore.self) private var settings
     @State private var showingSettings = false
+    @State private var showingSaved = false
     @Query private var savedSites: [SavedSite]
     @SceneStorage("lastURL") private var lastURL = "https://www.google.com"
 
@@ -47,7 +48,20 @@ struct BrowserWindow: View {
                             .labelStyle(.iconOnly)
                     } primaryAction: { toggleSave() }
                     .disabled(model.url?.host == nil).hoverEffect()
-                    tool("Saved sites", "book", disabled: true) {}
+                    tool("Saved sites", "book") { showingSaved = true }
+                        .popover(isPresented: $showingSaved) {
+                            SavedListView { site in
+                                if let url = URL(string: site.url) {
+                                    site.lastOpened = Date()
+                                    settings.save()
+                                    model.load(url)
+                                    showingSaved = false
+                                }
+                            } openOffline: { site in
+                                showingSaved = false
+                                Task { await model.openArchive(site, settings: settings) }
+                            }
+                        }
                     tool("Watch in Player", "play.rectangle",
                          disabled: model.isPreparingVideo || model.watchReason(native: settings.nativeVideo) != nil) {
                         Task {

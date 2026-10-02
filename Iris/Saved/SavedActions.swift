@@ -2,6 +2,10 @@ import SwiftData
 import WebKit
 
 extension BrowserModel {
+    func openArchive(_ site: SavedSite, settings: SettingsStore) async {
+        // The next task wires the archive load to the navigation guard.
+    }
+
     func saveOffline(existing: SavedSite?, settings: SettingsStore) async {
         guard !isSavingOffline, let view = webView, let url = view.url else { return }
         isSavingOffline = true
