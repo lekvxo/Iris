@@ -78,6 +78,10 @@ struct BrowserWindow: View {
                 }
                 .padding(12)
                 .glassBackgroundEffect()
+                if model.isLoading {
+                    ProgressView(value: model.estimatedProgress)
+                        .progressViewStyle(.linear).frame(width: 820, height: 3)
+                }
                 if let error = model.saveError {
                     HStack {
                         Text(error).font(.caption)
