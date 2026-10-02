@@ -5,6 +5,8 @@ struct BrowserWindow: View {
     @State private var model = BrowserModel()
     @State private var address = ""
     @Environment(\.openWindow) private var openWindow
+    @Environment(SettingsStore.self) private var settings
+    @State private var showingSettings = false
     @SceneStorage("lastURL") private var lastURL = "https://www.google.com"
 
     var body: some View {
@@ -34,6 +36,7 @@ struct BrowserWindow: View {
                     tool("Saved sites", "book", disabled: true) {}
                     tool("Watch in Player", "play.rectangle", disabled: true) {}
                     tool("Blocking", "shield", disabled: true) {}
+                    tool("Settings", "gear") { showingSettings = true }
                 }
                 .padding(12)
                 .glassBackgroundEffect()
@@ -47,6 +50,7 @@ struct BrowserWindow: View {
                         }.hoverEffect()
                         Button("Always allow on this site") {
                             model.allowedSites.insert(blocked.sourceSite)
+                            settings.allowNavigation(on: blocked.sourceSite, allow: true)
                             model.blocked = nil
                             if blocked.popup { model.openWindow?(blocked.url) } else { model.load(blocked.url) }
                         }.hoverEffect().disabled(blocked.sourceSite.isEmpty)
@@ -60,7 +64,12 @@ struct BrowserWindow: View {
                 address = url?.absoluteString ?? ""
                 if let url { lastURL = url.absoluteString }
             }
-            .onAppear { model.openWindow = { openWindow(id: "browser", value: $0) } }
+            .onAppear {
+                model.openWindow = { openWindow(id: "browser", value: $0) }
+                model.allowedSites = settings.navigationSites
+            }
+            .onChange(of: settings.navigationSites) { _, sites in model.allowedSites = sites }
+            .sheet(isPresented: $showingSettings) { SettingsView() }
     }
 
     private func tool(_ title: String, _ icon: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {
