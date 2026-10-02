@@ -1,0 +1,44 @@
+name: Iris
+options:
+  deploymentTarget:
+    visionOS: '27.0'
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: YOUR_TEAM_ID
+packages:
+  SafariConverterLib:
+    url: https://github.com/AdguardTeam/SafariConverterLib
+    exactVersion: 4.3.0
+targets:
+  Iris:
+    type: application
+    platform: visionOS
+    sources: [Iris]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.max.iris
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Iris/Info.plist
+        TARGETED_DEVICE_FAMILY: '7'
+    dependencies:
+      - package: SafariConverterLib
+        product: ContentBlockerConverter
+  IrisTests:
+    type: bundle.unit-test
+    platform: visionOS
+    sources: [IrisTests]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.max.iris.tests
+    dependencies:
+      - target: Iris
+schemes:
+  Iris:
+    build:
+      targets:
+        Iris: all
+    test:
+      targets: [IrisTests]
