@@ -1,11 +1,30 @@
 import SwiftUI
+import WebKit
 
 struct SettingsView: View {
     @Environment(SettingsStore.self) private var settings
     @Environment(\.dismiss) private var dismiss
+    @State private var clearingData = false
+    @State private var dataStatus: String?
     var body: some View {
         NavigationStack {
             Form {
+                Section("Browsing") {
+                    Toggle("Ad and tracker blocking", isOn: Binding(get: { settings.blockingEnabled }, set: { settings.blockingEnabled = $0 }))
+                    Button(clearingData ? "Clearing…" : "Clear website data", role: .destructive) {
+                        clearingData = true
+                        dataStatus = nil
+                        Task {
+                            await WKWebsiteDataStore.default().removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast)
+                            settings.blocker.applyToAll(reload: true)
+                            clearingData = false
+                            dataStatus = "Website data cleared"
+                        }
+                    }.disabled(clearingData).hoverEffect()
+                    Text("Clearing data signs you out of websites. Your saved sites and offline copies are kept.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    if let dataStatus { Text(dataStatus).font(.footnote) }
+                }
                 Section("Watch in Player") {
                     Toggle("Use website native fullscreen", isOn: Binding(get: { settings.nativeVideo }, set: { settings.nativeVideo = $0 }))
                     Text(settings.nativeVideo
