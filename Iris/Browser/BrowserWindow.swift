@@ -134,6 +134,9 @@ struct BrowserWindow: View {
                             } openOffline: { site in
                                 showingSaved = false
                                 Task { await model.openArchive(site, settings: settings) }
+                            } openHistory: { url in
+                                model.load(url)
+                                showingSaved = false
                             }
                         }
                     tool("Watch in Player", "play.rectangle",

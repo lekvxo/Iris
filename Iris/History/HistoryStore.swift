@@ -56,6 +56,26 @@ final class HistoryStore {
         ["http", "https"].contains(url.scheme?.lowercased()) && url.host?.isEmpty == false
     }
 
+    static func fetchDescriptor(search: String = "") -> FetchDescriptor<HistoryEntry> {
+        let term = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        var fetch = FetchDescriptor<HistoryEntry>(sortBy: [SortDescriptor(\.visitedAt, order: .reverse)])
+        if term.isEmpty {
+            fetch.fetchLimit = 500
+        } else {
+            fetch.predicate = #Predicate {
+                $0.title.localizedStandardContains(term) || $0.url.localizedStandardContains(term)
+            }
+        }
+        return fetch
+    }
+
+    func delete(_ entry: HistoryEntry) {
+        perform {
+            context.delete(entry)
+            try context.save()
+        }
+    }
+
     private func perform(_ action: () throws -> Void) {
         do { try action(); error = nil }
         catch { self.error = error.localizedDescription }

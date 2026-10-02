@@ -43,6 +43,45 @@ final class HistoryTests: XCTestCase {
         history.record(url: URL(string: "https://example.com")!, title: "")
         XCTAssertEqual(try container.mainContext.fetch(FetchDescriptor<HistoryEntry>()).first?.title, "example.com")
     }
+
+    @MainActor func testSearchUsesSwiftDataTitleAndURLAndBrowseLimitsNewest500() throws {
+        let container = try memoryContainer()
+        for index in 0..<501 {
+            container.mainContext.insert(HistoryEntry(url: URL(string: "https://example.com/\(index)")!,
+                title: index == 0 ? "Café SPACE" : "Page \(index)", visitedAt: Date(timeIntervalSince1970: Double(index))))
+        }
+        container.mainContext.insert(HistoryEntry(url: URL(string: "https://EXAMPLE.com/Needle")!, title: "Address match", visitedAt: .distantPast))
+        try container.mainContext.save()
+        let recent = try container.mainContext.fetch(HistoryStore.fetchDescriptor())
+        XCTAssertEqual(recent.count, 500)
+        XCTAssertEqual(recent.first?.url, "https://example.com/500")
+        XCTAssertFalse(recent.contains { $0.title == "Café SPACE" })
+        XCTAssertEqual(try container.mainContext.fetch(HistoryStore.fetchDescriptor(search: "cafe space")).map(\.title), ["Café SPACE"])
+        XCTAssertEqual(try container.mainContext.fetch(HistoryStore.fetchDescriptor(search: "NEEDLE")).map(\.title), ["Address match"])
+        XCTAssertTrue(try container.mainContext.fetch(HistoryStore.fetchDescriptor(search: "missing")).isEmpty)
+    }
+
+    @MainActor func testGroupingUsesLocalDaysAcrossDaylightSavingTime() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: 12))!
+        let offsets = [0, 0, -1, -3, -8]
+        let rows = offsets.map { offset in
+            HistoryEntry(url: URL(string: "https://example.com/\(offset)")!, title: "Page",
+                         visitedAt: calendar.date(byAdding: .day, value: offset, to: now)!)
+        }
+        let sections = HistoryDay.sections(rows, calendar: calendar, now: now)
+        XCTAssertEqual(sections.count, 4)
+        XCTAssertEqual(sections[0].title, "Today")
+        XCTAssertEqual(sections[0].entries.count, 2)
+        XCTAssertEqual(sections[1].title, "Yesterday")
+        let weekday = DateFormatter()
+        weekday.calendar = calendar
+        weekday.timeZone = calendar.timeZone
+        weekday.setLocalizedDateFormatFromTemplate("EEEE")
+        XCTAssertEqual(sections[2].title, weekday.string(from: sections[2].id))
+        XCTAssertTrue(sections[3].title.contains("2026"))
+    }
     @MainActor func testAddingHistoryPreservesExistingSavedDataAndSurvivesReopening() throws {
         let directory = URL.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
