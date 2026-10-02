@@ -39,10 +39,12 @@ struct BrowserWindow: View {
                             .labelStyle(.iconOnly).hoverEffect()
                     }.padding(8).glassBackgroundEffect()
                 }
-                if let reason = model.videoError ?? model.watchReason(native: settings.nativeVideo), model.video != nil {
-                    Text(reason).font(.caption).padding(8).glassBackgroundEffect()
-                } else if settings.nativeVideo, model.video?.descriptor.drm == true {
-                    Text("Protected video uses website fullscreen").font(.caption).padding(8).glassBackgroundEffect()
+                if model.video != nil, let note = model.videoNote(native: settings.nativeVideo) {
+                    HStack {
+                        Text(note).font(.caption)
+                        Button("Dismiss", systemImage: "xmark") { model.dismissVideoNote() }
+                            .labelStyle(.iconOnly).hoverEffect()
+                    }.padding(8).glassBackgroundEffect()
                 }
                 if let blocked = model.blocked {
                     HStack {

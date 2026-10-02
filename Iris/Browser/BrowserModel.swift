@@ -22,6 +22,7 @@ final class BrowserModel {
     var allowedSites: Set<String> = []
     var video: VideoCandidate?
     var videoError: String?
+    var dismissedVideoNote: String?
     var isPreparingVideo = false
     var playerSession: PlayerSession?
     var isSavingOffline = false
@@ -36,6 +37,19 @@ final class BrowserModel {
         if native { return video.descriptor.nativeFullscreen ? nil : "This video has no website fullscreen control" }
         if case .unsupported(let reason) = VideoBridge.classify(video.descriptor) { return reason }
         return nil
+    }
+
+    // The note under the toolbar; dismissing hides it for that video only.
+    func videoNote(native: Bool) -> String? {
+        if let videoError { return videoError }
+        guard let video, video.descriptor.id != dismissedVideoNote else { return nil }
+        if let reason = watchReason(native: native) { return reason }
+        return native && video.descriptor.drm ? "Protected video uses website fullscreen" : nil
+    }
+
+    func dismissVideoNote() {
+        videoError = nil
+        dismissedVideoNote = video?.descriptor.id
     }
 
     func load(_ url: URL) {
