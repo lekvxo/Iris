@@ -34,7 +34,7 @@ extension BrowserModel {
               case .playable(let source) = VideoBridge.classify(candidate.descriptor) else { return }
         isPreparingVideo = true
         videoError = nil
-        defer { isPreparingVideo = false }
+        defer { isPreparingVideo = false; loadingAsset = nil }
         var paused = false
         var wasPlaying = false
         var time = candidate.descriptor.time
@@ -56,6 +56,7 @@ extension BrowserModel {
                 AVURLAssetHTTPCookiesKey: Self.cookies(cookies, for: source),
                 AVURLAssetHTTPUserAgentKey: userAgent
             ])
+            loadingAsset = asset
             guard try await asset.load(.isPlayable), !(try await asset.load(.hasProtectedContent)) else {
                 throw VideoError.unsupported
             }

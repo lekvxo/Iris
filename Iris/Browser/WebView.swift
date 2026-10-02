@@ -29,10 +29,11 @@ struct WebView: UIViewRepresentable {
         model.webView = view
         context.coordinator.observe(view)
         context.coordinator.settings = settings
-        context.coordinator.initialLoad = Task { [weak view] in
-            guard let view else { return }
-            await settings.blocker.register(view, settings: settings)
-            guard !Task.isCancelled else { return }
+        context.coordinator.initialLoad = Task { [weak view, weak model] in
+            await settings.blocker.prepare(settings: settings)
+            guard !Task.isCancelled, let view, let model else { return }
+            settings.blocker.register(view, settings: settings)
+            model.isInitializing = false
             model.load(initialURL)
         }
         return view
@@ -46,6 +47,7 @@ struct WebView: UIViewRepresentable {
     static func dismantleUIView(_ view: WKWebView, coordinator: Coordinator) {
         view.stopLoading()
         coordinator.initialLoad?.cancel()
+        coordinator.initialLoad = nil
         coordinator.settings?.blocker.unregister(view)
         view.navigationDelegate = nil
         view.uiDelegate = nil
@@ -53,6 +55,14 @@ struct WebView: UIViewRepresentable {
         view.configuration.userContentController.removeScriptMessageHandler(forName: "irisVideo")
         coordinator.observations.removeAll()
         coordinator.model.webView = nil
+        coordinator.model.videoTask?.cancel()
+        coordinator.model.videoTask = nil
+        coordinator.model.loadingAsset?.cancelLoading()
+        coordinator.model.loadingAsset = nil
+        coordinator.model.playerSession?.player.pause()
+        coordinator.model.playerSession = nil
+        coordinator.model.video = nil
+        coordinator.model.openWindow = nil
     }
 
     @MainActor final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {

@@ -23,7 +23,7 @@ struct BrowserWindow: View {
                         Label("Unable to load page", systemImage: "wifi.exclamationmark")
                     } description: { Text(error) } actions: {
                         Button("Try again") {
-                            model.load(model.url ?? InputRouter.destination(for: address))
+                            model.load(model.requestedURL ?? model.url ?? InputRouter.destination(for: address))
                         }.hoverEffect()
                     }.padding().glassBackgroundEffect()
                 }
@@ -38,6 +38,7 @@ struct BrowserWindow: View {
                     }
                     AddressField(text: $address) { model.load(InputRouter.destination(for: address)) }
                         .frame(width: 420, height: 44)
+                        .disabled(model.isInitializing)
                     Menu {
                         Button("Save offline copy", systemImage: "arrow.down.doc") {
                             Task { await model.saveOffline(existing: currentSavedSite, settings: settings) }
@@ -48,7 +49,7 @@ struct BrowserWindow: View {
                             .labelStyle(.iconOnly)
                     } primaryAction: { toggleSave() }
                     .disabled(model.url?.host == nil).hoverEffect()
-                    tool("Saved sites", "book") { showingSaved = true }
+                    tool("Saved sites", "book", disabled: model.isInitializing) { showingSaved = true }
                         .popover(isPresented: $showingSaved) {
                             SavedListView { site in
                                 if let url = URL(string: site.url) {
@@ -64,9 +65,10 @@ struct BrowserWindow: View {
                         }
                     tool("Watch in Player", "play.rectangle",
                          disabled: model.isPreparingVideo || model.watchReason(native: settings.nativeVideo) != nil) {
-                        Task {
-                            if settings.nativeVideo { await model.enterNativeFullscreen() }
-                            else { await model.prepareHandoff() }
+                        let native = settings.nativeVideo
+                        model.videoTask = Task { [weak model] in
+                            if native { await model?.enterNativeFullscreen() }
+                            else { await model?.prepareHandoff() }
                         }
                     }
                     tool(settings.blockingActive(for: model.url) ? "Blocking on" : "Blocking off",

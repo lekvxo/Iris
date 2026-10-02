@@ -21,15 +21,19 @@ final class BlockerController {
         init(_ view: WKWebView) { self.view = view }
     }
 
-    func register(_ view: WKWebView, settings: SettingsStore) async {
+    func register(_ view: WKWebView, settings: SettingsStore) {
         self.settings = settings
         views.removeAll { $0.view == nil }
         views.append(WeakView(view))
+        apply(to: view, destination: view.url)
+    }
+
+    func prepare(settings: SettingsStore) async {
+        self.settings = settings
         if startup == nil {
             startup = Task { await prepare() }
         }
         await startup?.value
-        apply(to: view, destination: view.url)
     }
 
     func unregister(_ view: WKWebView) { views.removeAll { $0.view == nil || $0.view === view } }

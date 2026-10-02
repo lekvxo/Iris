@@ -1,5 +1,6 @@
 import Observation
 import WebKit
+import AVFoundation
 
 @MainActor @Observable
 final class BrowserModel {
@@ -25,6 +26,10 @@ final class BrowserModel {
     var playerSession: PlayerSession?
     var isSavingOffline = false
     var saveError: String?
+    var isInitializing = true
+    @ObservationIgnored var videoTask: Task<Void, Never>?
+    @ObservationIgnored var loadingAsset: AVURLAsset?
+    @ObservationIgnored var requestedURL: URL?
 
     func watchReason(native: Bool) -> String? {
         guard let video else { return "Play a video on the page to detect it" }
@@ -35,6 +40,7 @@ final class BrowserModel {
 
     func load(_ url: URL) {
         error = nil
+        requestedURL = url
         nativeDestination = url
         nativeArchiveDestination = nil
         webView?.load(URLRequest(url: url))
