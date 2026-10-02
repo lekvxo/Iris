@@ -81,3 +81,9 @@ Xcode 27 / visionOS 27 simulator build passed with no compiler/build warnings. A
 ## Navigation rejection logging — October 2, 2026
 
 Task 3 adds an OSLog notice on every NavigationGuard rejection, with destination URL, source page URL and a specific reason. The exception findings were reported before the logging edit and recorded in BLOCKING_REVIEW.md; no allow/deny policy or exception changed. The full visionOS 27 simulator build/tests passed without new warnings: 50 passed, one optional live-download check skipped, zero failures. Actual WebKit popup and redirect fixture rejections emitted the requested fields. Result: `build/Logs/Test/Test-Iris-2026.10.02_12-47-43--0700.xcresult`.
+
+## YouTube evaluation — October 2, 2026
+
+Task 4 remains at the approval boundary. A temporary converter/FilterEngine probe against this snapshot found 11 desktop YouTube scriptlets (7 mobile), but two converted XHR calls fail the converter's own argument parser and four desktop calls use trusted aliases absent from the pinned AdGuard JS runtime. Full findings and the recommended YouTube-only maintained-scriptlet pilot are in BLOCKING_REVIEW.md. No scriptlet runtime, custom YouTube script, package change or advanced conversion switch was added to Iris. The manual checklist is prepared; Task 5's post-implementation testing and all actual headset results remain pending.
+
+The updated signed Release device build also passed with no compiler/build warnings. `/tmp/iris-headset-build/Build/Products/Release-xros/Iris.app` includes bundled offline blocking and rejection logs. Team F47GC3BYK3 was supplied only on the command line; `project.yml` retains `YOUR_TEAM_ID`. Device installation and acceptance remain pending. Release build log: `/tmp/iris-blocking-headset-build.log`.
