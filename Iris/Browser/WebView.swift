@@ -125,6 +125,22 @@ struct WebView: UIViewRepresentable {
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             report(error)
         }
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            model.invalidateVideo()
+            model.video = nil
+            model.videoError = nil
+            model.isLoading = false
+            model.estimatedProgress = 0
+            model.requestedURL = webView.url ?? model.requestedURL
+            permittedNavigation = nil
+            permittedStart = false
+            model.nativeDestination = nil
+            model.nativeArchiveDestination = nil
+            model.serverRedirectDestination = nil
+            model.lastLink = nil
+            model.error = "The website process stopped. Try again to reload this page."
+        }
+
         private func report(_ error: Error) {
             permittedNavigation = nil
             model.serverRedirectDestination = nil
@@ -153,7 +169,7 @@ struct WebView: UIViewRepresentable {
             popup.popup = (view, coordinator)
             settings.blocker.register(view, settings: settings)
             let request = WindowRequest(url: url)
-            BrowserModel.pendingPopups[request.id] = popup
+            BrowserModel.registerPopup(popup, id: request.id)
             openWindow(request)
             return view
         }
@@ -189,10 +205,12 @@ struct WebView: UIViewRepresentable {
             guard let target = action.targetFrame else { decisionHandler(.allow); return }
             guard target.isMainFrame else { decisionHandler(.allow); return }
             let allowed = permitted(action)
+            let loadingArchive = model.nativeArchiveDestination != nil
             model.nativeArchiveDestination = nil
             if model.nativeDestination == action.request.url { model.nativeDestination = nil }
             if model.serverRedirectDestination == action.request.url { model.serverRedirectDestination = nil }
             if allowed {
+                if !loadingArchive { model.archiveReplay = nil }
                 settings?.blocker.apply(to: webView, destination: action.request.url)
                 permittedStart = true
                 model.blocked = nil

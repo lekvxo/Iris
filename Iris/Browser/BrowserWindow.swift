@@ -18,7 +18,7 @@ struct BrowserWindow: View {
     init(initialURL: URL?, popupID: UUID? = nil) {
         self.initialURL = initialURL
         // A popup window adopts the model its opener prepared; later inits find nothing and are discarded.
-        _model = State(initialValue: popupID.flatMap { BrowserModel.pendingPopups.removeValue(forKey: $0) } ?? BrowserModel())
+        _model = State(initialValue: popupID.flatMap { BrowserModel.adoptPopup($0) } ?? BrowserModel())
     }
 
     var body: some View {
@@ -50,7 +50,7 @@ struct BrowserWindow: View {
                         Label("Unable to load page", systemImage: "wifi.exclamationmark")
                     } description: { Text(error) } actions: {
                         Button("Try again") {
-                            if let url = model.requestedURL ?? model.url { model.load(url) }
+                            Task { await model.retryPage(settings: settings) }
                         }.hoverEffect()
                     }.padding().glassBackgroundEffect()
                 }
@@ -98,7 +98,7 @@ struct BrowserWindow: View {
                     tool("Back", "chevron.left", disabled: !model.canGoBack) { model.webView?.goBack() }
                     tool("Forward", "chevron.right", disabled: !model.canGoForward) { model.webView?.goForward() }
                     tool(model.isLoading ? "Stop" : "Reload", model.isLoading ? "xmark" : "arrow.clockwise") {
-                        if model.isLoading { model.webView?.stopLoading() } else { model.webView?.reload() }
+                        if model.isLoading { model.webView?.stopLoading() } else { Task { await model.reloadPage(settings: settings) } }
                     }
                     AddressField(text: model.url?.absoluteString ?? "") { model.load(InputRouter.destination(for: $0)) }
                         .frame(width: 420, height: 44)

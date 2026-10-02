@@ -25,7 +25,7 @@ extension BrowserModel {
 
     func closePlayer() async {
         guard let session = playerSession else { return }
-        session.player.pause()
+        session.stop()
         let time = session.player.currentTime().seconds
         playerSession = nil
         guard webView?.url == session.pageURL else { return }
@@ -59,10 +59,11 @@ extension BrowserModel {
             let cookies = await view.configuration.websiteDataStore.httpCookieStore.allCookies()
             let userAgent = try await view.evaluateJavaScript("navigator.userAgent", in: candidate.frame, contentWorld: .page) as? String ?? ""
             try validatePreparation(preparationID, candidate: candidate, view: view, pageURL: pageURL)
-            let asset = AVURLAsset(url: source, options: [
+            let options: [String: Any] = [
                 AVURLAssetHTTPCookiesKey: Self.cookies(cookies, for: source),
                 AVURLAssetHTTPUserAgentKey: userAgent
-            ])
+            ]
+            let asset = AVURLAsset(url: source, options: options)
             loadingAsset = asset
             guard try await asset.load(.isPlayable), !(try await asset.load(.hasProtectedContent)) else {
                 throw VideoError.unsupported
@@ -73,9 +74,15 @@ extension BrowserModel {
             metadata.value = title as NSString
             metadata.extendedLanguageTag = "und"
             item.externalMetadata = [metadata]
+            let retryMetadata = item.externalMetadata
             try await completeHandoff(preparationID, candidate: candidate, view: view, pageURL: pageURL,
-                                      wasPlaying: wasPlaying) {
+                                      wasPlaying: wasPlaying, retryItem: {
+                let replacement = AVPlayerItem(asset: AVURLAsset(url: source, options: options))
+                replacement.externalMetadata = retryMetadata
+                return replacement
+            }) {
                 let player = AVPlayer(playerItem: item)
+                preparingPlayer = player
                 let duration = try await asset.load(.duration).seconds
                 let start = time.isFinite ? max(0, duration.isFinite && duration > 0 ? min(time, duration) : time) : 0
                 if start > 0 {
@@ -94,13 +101,17 @@ extension BrowserModel {
     // A canceled preparation may still finish an AVFoundation or WebKit callback.
     // Its token must never clear or present a newer preparation's session.
     func invalidateVideo() {
+        documentID = UUID()
         videoPreparationID = nil
         videoTask?.cancel()
         videoTask = nil
+        preparingPlayer?.currentItem?.cancelPendingSeeks()
+        preparingPlayer?.pause()
+        preparingPlayer = nil
         loadingAsset?.cancelLoading()
         loadingAsset = nil
         isPreparingVideo = false
-        playerSession?.player.pause()
+        playerSession?.stop()
         playerSession = nil
     }
 
@@ -108,6 +119,7 @@ extension BrowserModel {
         guard videoPreparationID == id else { return }
         videoPreparationID = nil
         isPreparingVideo = false
+        preparingPlayer = nil
         loadingAsset = nil
     }
 
@@ -119,13 +131,14 @@ extension BrowserModel {
     }
 
     func completeHandoff(_ id: UUID, candidate: VideoCandidate, view: WKWebView, pageURL: URL?,
-                         wasPlaying: Bool, makePlayer: () async throws -> AVPlayer) async throws {
+                         wasPlaying: Bool, retryItem: (() -> AVPlayerItem)? = nil,
+                         makePlayer: () async throws -> AVPlayer) async throws {
         try validatePreparation(id, candidate: candidate, view: view, pageURL: pageURL)
         let player = try await makePlayer()
         // In particular, validate after duration loading AND asynchronous seek.
         do { try validatePreparation(id, candidate: candidate, view: view, pageURL: pageURL) }
         catch { player.pause(); throw error }
-        playerSession = PlayerSession(player: player, candidate: candidate, wasPlaying: wasPlaying, pageURL: pageURL)
+        playerSession = PlayerSession(player: player, candidate: candidate, wasPlaying: wasPlaying, pageURL: pageURL, retryItem: retryItem)
     }
 
     static func cookies(_ cookies: [HTTPCookie], for url: URL) -> [HTTPCookie] {

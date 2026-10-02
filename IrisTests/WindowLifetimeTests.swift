@@ -47,4 +47,29 @@ import WebKit
             XCTAssertNil(reference.coordinator)
         }
     }
+    func testUnadoptedPopupExpiresAndReleasesItsCycle() async throws {
+        let references = References()
+        let id = UUID()
+        autoreleasepool {
+            let model = BrowserModel()
+            let coordinator = WebView.Coordinator(model: model)
+            let view = WKWebView()
+            model.webView = view
+            model.popup = (view, coordinator)
+            view.configuration.userContentController.add(coordinator, name: "irisVideo")
+            references.model = model
+            references.coordinator = coordinator
+            references.view = view
+            BrowserModel.registerPopup(model, id: id, expiresAfter: .milliseconds(20))
+        }
+        for _ in 0..<100 {
+            if BrowserModel.pendingPopups[id] == nil, references.view == nil { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        XCTAssertNil(BrowserModel.pendingPopups[id])
+        XCTAssertNil(references.view)
+        XCTAssertNil(references.coordinator)
+        XCTAssertNil(references.model)
+    }
+
 }

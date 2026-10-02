@@ -15,6 +15,7 @@ struct PlayerView: UIViewControllerRepresentable {
     func updateUIViewController(_ controller: Container, context: Context) {}
     static func dismantleUIViewController(_ controller: Container, coordinator: Coordinator) {
         coordinator.startTask?.cancel()
+        coordinator.session.stop()
         controller.player.experienceController.delegate = nil
         controller.player.player?.pause()
         controller.player.player = nil
@@ -62,7 +63,7 @@ struct PlayerView: UIViewControllerRepresentable {
             startTask = Task {
                 let result = await controller.experienceController.transition(to: .expanded)
                 guard !Task.isCancelled else { return }
-                if result == .completed { session.player.play() }
+                if result == .completed { session.play() }
                 else { session.error = "Expanded playback is unavailable. Use Back to page to return." }
             }
         }
@@ -87,8 +88,15 @@ struct PlayerScreen: View {
             }
             .overlay {
                 if let error = session.error {
-                    ContentUnavailableView("Unable to play video", systemImage: "exclamationmark.triangle", description: Text(error))
-                        .padding().glassBackgroundEffect()
+                    ContentUnavailableView {
+                        Label("Unable to play video", systemImage: "exclamationmark.triangle")
+                    } description: { Text(error) } actions: {
+                        if session.canRetry {
+                            Button(session.isRetrying ? "Retrying…" : "Retry playback") { session.retry() }
+                                .disabled(session.isRetrying).hoverEffect()
+                        }
+                        Button("Back to page", action: close).hoverEffect()
+                    }.padding().glassBackgroundEffect()
                 }
             }
     }

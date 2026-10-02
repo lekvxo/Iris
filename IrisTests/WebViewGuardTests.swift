@@ -84,7 +84,7 @@ import UIKit
         XCTAssertEqual(opened as? Bool, true, "The page must get a window handle back")
         let request = try XCTUnwrap(requests.first)
         XCTAssertEqual(request.url.host, "popup.example.net")
-        let popup = try XCTUnwrap(BrowserModel.pendingPopups.removeValue(forKey: request.id))
+        let popup = try XCTUnwrap(BrowserModel.adoptPopup(request.id))
         let popupView = try XCTUnwrap(popup.popup?.view)
         XCTAssertTrue(popup.webView === popupView)
         XCTAssertTrue(popup.popup?.coordinator.model === popup)

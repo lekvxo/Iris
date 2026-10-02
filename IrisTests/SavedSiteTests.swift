@@ -81,6 +81,26 @@ final class SavedSiteTests: XCTestCase {
         let reopened = try await fixtureText(restored)
         XCTAssertEqual(reopened, "Offline fixture")
         XCTAssertNil(model.blocked)
+        let settings = SettingsStore()
+        let name = try await settings.archives.write(archive, id: UUID())
+        defer { Task { try? await settings.archives.delete(name) } }
+        model.archiveReplay = (name, base)
+        coordinator.webViewWebContentProcessDidTerminate(restored)
+        XCTAssertNotNil(model.error)
+        XCTAssertFalse(model.isLoading)
+        XCTAssertNil(model.video)
+        // Replace the rendered document so this assertion requires an actual archive replay.
+        restored.navigationDelegate = nil
+        restored.loadHTMLString("<body>Replacement</body>", baseURL: base)
+        for _ in 0..<100 {
+            if !restored.isLoading { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        restored.navigationDelegate = coordinator
+        await model.retryPage(settings: settings)
+        let recovered = try await fixtureText(restored)
+        XCTAssertEqual(recovered, "Offline fixture", "Retry must restore the local archive without fetching the website")
+        XCTAssertNil(model.error)
     }
 
     @MainActor private func fixtureText(_ view: WKWebView) async throws -> String {

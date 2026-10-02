@@ -35,8 +35,34 @@ final class BrowserModel {
     var isBackgrounded = false
     @ObservationIgnored var videoTask: Task<Void, Never>?
     @ObservationIgnored var videoPreparationID: UUID?
+    @ObservationIgnored var preparingPlayer: AVPlayer?
     @ObservationIgnored var loadingAsset: AVURLAsset?
     @ObservationIgnored var requestedURL: URL?
+    @ObservationIgnored var documentID = UUID()
+    @ObservationIgnored var archiveReplay: (name: String, url: URL)?
+    private static var popupExpiry: [UUID: Task<Void, Never>] = [:]
+
+    static func registerPopup(_ model: BrowserModel, id: UUID, expiresAfter: Duration = .seconds(30)) {
+        pendingPopups[id] = model
+        model.closeWindow = { discardPopup(id) }
+        popupExpiry[id] = Task {
+            do { try await Task.sleep(for: expiresAfter) } catch { return }
+            discardPopup(id)
+        }
+    }
+
+    static func adoptPopup(_ id: UUID) -> BrowserModel? {
+        popupExpiry.removeValue(forKey: id)?.cancel()
+        return pendingPopups.removeValue(forKey: id)
+    }
+
+    static func discardPopup(_ id: UUID) {
+        popupExpiry.removeValue(forKey: id)?.cancel()
+        guard let model = pendingPopups.removeValue(forKey: id), let popup = model.popup else { return }
+        // Break model -> coordinator -> model before unregistering WebKit's handlers.
+        model.popup = nil
+        WebView.dismantleUIView(popup.view, coordinator: popup.coordinator)
+    }
 
     func watchReason(native: Bool) -> String? {
         guard let video else { return "Play a video on the page to detect it" }
@@ -64,6 +90,7 @@ final class BrowserModel {
         requestedURL = url
         nativeDestination = url
         nativeArchiveDestination = nil
+        archiveReplay = nil
         webView?.load(URLRequest(url: url))
     }
 

@@ -59,6 +59,30 @@ import UIKit
         XCTAssertNil(model.playerSession)
     }
 
+    func testStalledPlaybackOffersFreshItemAndCloseCancelsRetry() async throws {
+        let (view, frame) = try await fixture()
+        defer { view.stopLoading(); view.removeFromSuperview() }
+        let candidate = VideoCandidate(descriptor: descriptor("https://example.com/a.mp4"), frame: frame)
+        let first = AVPlayerItem(url: URL(fileURLWithPath: "/nonexistent-first.mp4"))
+        let replacement = AVPlayerItem(url: URL(fileURLWithPath: "/nonexistent-retry.mp4"))
+        let player = AVPlayer(playerItem: first)
+        let session = PlayerSession(player: player, candidate: candidate, wasPlaying: true, pageURL: view.url,
+                                    retryItem: { replacement })
+        NotificationCenter.default.post(name: AVPlayerItem.playbackStalledNotification, object: first)
+        for _ in 0..<50 {
+            if session.error != nil { break }
+            await Task.yield()
+        }
+        XCTAssertNotNil(session.error)
+        XCTAssertTrue(session.canRetry)
+        session.retry()
+        XCTAssertTrue(player.currentItem === replacement, "Retry must rebuild the item rather than reuse a failed item")
+        session.stop()
+        for _ in 0..<50 { await Task.yield() }
+        XCTAssertFalse(session.isRetrying)
+        XCTAssertEqual(player.rate, 0, "A closing player must not resume after its retry completes")
+    }
+
     private final class FrameRecorder: NSObject, WKScriptMessageHandler {
         var frame: WKFrameInfo?
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
