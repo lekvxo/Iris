@@ -9,10 +9,12 @@ final class PageBlockingActivityTests: XCTestCase {
         activity.record(url, kind: .popup)
         activity.record(url, kind: .popup)
         XCTAssertEqual(activity.count, 1, "Script reporting and delegate denial must not double-count a destination")
-        XCTAssertEqual(activity.summary, "Blocked 1 popup")
+        XCTAssertEqual(activity.summary, "Blocked 1 popups and redirects")
         activity.record(url, kind: .redirect)
         XCTAssertEqual(activity.count, 2)
-        XCTAssertEqual(activity.summary, "Blocked 1 popup and 1 redirect")
+        XCTAssertEqual(activity.summary, "Blocked 2 popups and redirects")
+        activity.record(URL(string: "https://unwanted.example/redirect")!, kind: .redirect)
+        XCTAssertEqual(activity.summary, "Blocked 3 popups and redirects")
         activity.reset()
         XCTAssertNotEqual(activity.pageID, firstPage)
         XCTAssertTrue(activity.items.isEmpty)
@@ -27,7 +29,7 @@ final class PageBlockingActivityTests: XCTestCase {
         }
         XCTAssertEqual(activity.items.count, PageBlockingActivity.detailLimit)
         XCTAssertEqual(activity.badgeTitle, "200+")
-        XCTAssertEqual(activity.summary, "Blocked 200+ unwanted destinations")
+        XCTAssertEqual(activity.summary, "Blocked 200+ popups and redirects")
         activity.reset()
         XCTAssertFalse(activity.hasMore)
     }

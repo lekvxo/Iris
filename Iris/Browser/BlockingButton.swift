@@ -12,7 +12,9 @@ struct BlockingButton: View {
             Label {
                 // The existing ornament is an HStack, not a ToolbarItem host.
                 // Use the system button label instead of drawing a badge bubble.
-                Text(model.blockingActivity.badgeTitle).font(.caption).monospacedDigit()
+                if model.blockingActivity.count > 0 {
+                    Text(model.blockingActivity.badgeTitle).font(.caption).monospacedDigit()
+                }
             } icon: {
                 Image(systemName: settings.blockingActive(for: model.url) ? "shield.fill" : "shield.slash")
             }
@@ -54,6 +56,10 @@ private struct BlockingPopover: View {
             Text(site ?? "This page").font(.subheadline).foregroundStyle(.secondary)
             Text(model.blockingActivity.summary)
                 .fixedSize(horizontal: false, vertical: true)
+            if site != nil && settings.blockingActive(for: model.url) {
+                Text("Ad and tracker blocking is active")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
             Toggle("Block ads and trackers on this site", isOn: siteBlocking)
                 .disabled(site == nil || !settings.blockingEnabled)
             if !settings.blockingEnabled {

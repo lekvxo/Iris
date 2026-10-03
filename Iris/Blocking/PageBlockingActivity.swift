@@ -20,13 +20,7 @@ struct PageBlockingActivity {
     var count: Int { items.count }
     var badgeTitle: String { count.formatted() + (hasMore ? "+" : "") }
     var summary: String {
-        if hasMore { return "Blocked \(badgeTitle) unwanted destinations" }
-        let popups = items.filter { $0.kind == .popup }.count
-        let redirects = count - popups
-        var parts: [String] = []
-        if popups > 0 { parts.append("\(popups.formatted()) \(popups == 1 ? "popup" : "popups")") }
-        if redirects > 0 { parts.append("\(redirects.formatted()) \(redirects == 1 ? "redirect" : "redirects")") }
-        return parts.isEmpty ? "No popups or redirects blocked on this page" : "Blocked " + parts.joined(separator: " and ")
+        count == 0 ? "No popups or redirects blocked on this page" : "Blocked \(badgeTitle) popups and redirects"
     }
 
     mutating func record(_ url: URL, kind: Kind) {
