@@ -24,21 +24,20 @@ func canvas(opaque: Bool = false) -> CGContext {
 var images: [String: CGImage] = [:]
 for name in ["Back", "Front"] {
     let context = canvas(opaque: name == "Back")
-    let sourceName = name == "Back" ? "Frosted-Background" : "Frosted-Aperture"
-    let sourceURL = root.appendingPathComponent("Design/Icon/\(sourceName).png")
+    let sourceURL = root.appendingPathComponent("Design/Icon/BlueViolet-Aperture.png")
     guard let source = NSImage(contentsOf: sourceURL),
           let sourceImage = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-        fatalError("Missing approved frosted icon source: \(sourceURL.path)")
+        fatalError("Missing approved icon source: \(sourceURL.path)")
     }
     if name == "Back" {
-        context.setFillColor(color(1, 1, 1))
+        context.setFillColor(color(0.035, 0.045, 0.10))
         context.fill(CGRect(x: 0, y: 0, width: 1024, height: 1024))
     }
     context.interpolationQuality = .high
-    // Leave room for visionOS's circular crop and gaze-driven foreground motion.
-    let bounds = name == "Back" ? CGRect(x: 0, y: 0, width: 1024, height: 1024)
-                                : CGRect(x: 72, y: 72, width: 880, height: 880)
-    context.draw(sourceImage, in: bounds)
+    // The extracted lens has transparent padding. Enlarge it to nearly fill the circular mask.
+    if name == "Front" {
+        context.draw(sourceImage, in: CGRect(x: -32, y: -32, width: 1088, height: 1088))
+    }
     let image = context.makeImage()!
     images[name] = image
     let layer = stack.appendingPathComponent("\(name).solidimagestacklayer")
@@ -54,4 +53,4 @@ preview.addEllipse(in: CGRect(x: 0, y: 0, width: 1024, height: 1024))
 preview.clip()
 for name in ["Back", "Front"] { preview.draw(images[name]!, in: CGRect(x: 0, y: 0, width: 1024, height: 1024)) }
 try NSBitmapImageRep(cgImage: preview.makeImage()!).representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "/tmp/iris-icon-preview.png"))
-print("Prepared two 1024 × 1024 frosted icon layers and circular preview.")
+print("Prepared two 1024 × 1024 blue/violet icon layers and circular preview.")

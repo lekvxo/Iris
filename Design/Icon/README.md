@@ -1,4 +1,12 @@
-# Frosted glacier Iris icon
+# Iris icon
+
+## Current: blue/violet lens — October 4, 2026
+
+Max supplied `BlueViolet-Concept.png` and requested a lens that nearly fills the circular icon. The built-in imagegen tool extracted `BlueViolet-Aperture.png`; `Scripts/generate-icon.swift` enlarges this foreground over an opaque navy backing. Both layers are 1024 × 1024. `Preview.png` shows the system-style circular crop. Simulator asset compilation passed without warnings; gaze/parallax still requires the headset.
+
+Prompt used (built-in tool, background-extraction): "Prepare the circular lens/aperture alone as the front layer of a visionOS app icon. Remove ONLY the rounded square outer tile and external navy background; preserve the entire circular glass lens, its blue-violet iris blades, center dark opening, exact blade shapes and lighting/refraction. Keep the center opening navy opaque as in input. No new logo or redesign. Center the circular lens on a square transparent canvas with its outer rim filling 96% of canvas width and height, a narrow 2% transparent border each side. Actual transparent alpha outside circular rim, no square, text, shadow outside rim or checkerboard pixels. High resolution."
+
+## Previous: frosted glacier
 
 Max selected Option B on October 2, 2026. `Frosted-Concept.png` preserves that original concept. The built-in image generation tool extracted `Frosted-Aperture.png` with transparency and prepared the opaque `Frosted-Background.png`; no external icon library is used.
 
