@@ -61,6 +61,7 @@ final class BrowserTabs {
     func close(_ id: UUID) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
         let tab = tabs[index]
+        tab.model.popup = nil
         tab.model.invalidateVideo()
         tab.model.webView?.stopLoading()
         if let view = tab.model.webView, let coordinator = view.navigationDelegate as? WebView.Coordinator {

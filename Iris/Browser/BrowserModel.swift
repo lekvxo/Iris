@@ -14,7 +14,7 @@ final class BrowserModel {
     @ObservationIgnored weak var webView: WKWebView?
     @ObservationIgnored var openWindow: ((WindowRequest) -> Void)?
     @ObservationIgnored var closeWindow: (() -> Void)?
-    // A popup's web view, made by its opener, waiting for its window to adopt it.
+    // A popup's web view, made by its opener, waiting for its tab to adopt it.
     @ObservationIgnored var popup: (view: WKWebView, coordinator: WebView.Coordinator)?
     static var pendingPopups: [UUID: BrowserModel] = [:]
     @ObservationIgnored var lastLink: URL?
@@ -34,6 +34,9 @@ final class BrowserModel {
     var saveError: String?
     var isInitializing = true
     var isBackgrounded = false
+    var isWebFullscreen = false
+    @ObservationIgnored weak var browserScene: UIWindowScene?
+    @ObservationIgnored var browserWindowSize = CGSize(width: 1100, height: 760)
     @ObservationIgnored var videoTask: Task<Void, Never>?
     @ObservationIgnored var videoPreparationID: UUID?
     @ObservationIgnored var preparingPlayer: AVPlayer?

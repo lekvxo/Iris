@@ -10,11 +10,11 @@ struct WebView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { model.popup?.coordinator ?? Coordinator(model: model) }
 
-    func makeUIView(context: Context) -> WKWebView {
+    func makeUIView(context: Context) -> BrowserWebContainer {
         // A popup arrives already loading, wired to this coordinator by its opener.
         if let popup = model.popup {
             model.popup = nil
-            return popup.view
+            return BrowserWebContainer(webView: popup.view, model: model)
         }
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.preferredContentMode = .desktop
@@ -30,7 +30,7 @@ struct WebView: UIViewRepresentable {
             model.isInitializing = false
             model.load(initialURL)
         }
-        return view
+        return BrowserWebContainer(webView: view, model: model)
     }
 
     static func makeWebView(_ configuration: WKWebViewConfiguration, coordinator: Coordinator, settings: SettingsStore) -> WKWebView {
@@ -45,9 +45,12 @@ struct WebView: UIViewRepresentable {
             source: ScriptSource.read("GestureProbe"), injectionTime: .atDocumentStart,
             forMainFrameOnly: true, in: .defaultClient))
         controller.add(coordinator, name: "irisVideo")
+        controller.add(coordinator, name: "irisFullscreen")
         controller.add(coordinator, name: "irisYouTubeScriptlets")
         controller.addUserScript(WKUserScript(
             source: ScriptSource.read("VideoProbe"), injectionTime: .atDocumentEnd, forMainFrameOnly: false))
+        controller.addUserScript(WKUserScript(
+            source: ScriptSource.read("NativeCaptions"), injectionTime: .atDocumentEnd, forMainFrameOnly: false))
         configuration.userContentController = controller
         let view = WKWebView(frame: .zero, configuration: configuration)
         // Google's bare WebKit fallback is the legacy homepage. Advertise the desktop Safari version.
@@ -61,10 +64,15 @@ struct WebView: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ view: WKWebView, context: Context) {
+    func updateUIView(_ container: BrowserWebContainer, context: Context) {
+        let view = container.webView
         let site = model.url?.host.map(PublicSuffix.bundled.registrableDomain) ?? ""
         view.configuration.preferences.javaScriptCanOpenWindowsAutomatically = model.allowedSites.contains(site)
         context.coordinator.updateVideoPolicy(view, interval: probeInterval)
+    }
+
+    static func dismantleUIView(_ container: BrowserWebContainer, coordinator: Coordinator) {
+        dismantleUIView(container.webView, coordinator: coordinator)
     }
 
     static func dismantleUIView(_ view: WKWebView, coordinator: Coordinator) {
@@ -79,6 +87,7 @@ struct WebView: UIViewRepresentable {
         view.uiDelegate = nil
         view.configuration.userContentController.removeScriptMessageHandler(forName: "irisGesture", contentWorld: .defaultClient)
         view.configuration.userContentController.removeScriptMessageHandler(forName: "irisVideo")
+        view.configuration.userContentController.removeScriptMessageHandler(forName: "irisFullscreen")
         view.configuration.userContentController.removeScriptMessageHandler(forName: "irisPopup")
         view.configuration.userContentController.removeScriptMessageHandler(forName: "irisYouTubeScriptlets")
         coordinator.observations.removeAll()
@@ -109,6 +118,12 @@ struct WebView: UIViewRepresentable {
         init(model: BrowserModel) { self.model = model }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "irisFullscreen", let body = message.body as? [String: Any],
+               let fullscreen = body["fullscreen"] as? Bool {
+                model.isWebFullscreen = fullscreen
+                if !fullscreen { model.restoreBrowserWindow() }
+                return
+            }
             if message.name == "irisYouTubeScriptlets" { settings?.youtube.log(message); return }
             if message.name == "irisPopup", let body = message.body as? [String: Any],
                let value = body["url"] as? String, let url = URL(string: value),
@@ -341,6 +356,13 @@ struct WebView: UIViewRepresentable {
 
         func observe(_ view: WKWebView) {
             observations = [
+                view.observe(\.fullscreenState, options: [.new]) { [weak self] view, _ in
+                    MainActor.assumeIsolated {
+                        guard let self else { return }
+                        self.model.isWebFullscreen = view.fullscreenState != .notInFullscreen
+                        if !self.model.isWebFullscreen { self.model.restoreBrowserWindow() }
+                    }
+                },
                 view.observe(\.url, options: [.new]) { [weak self] view, _ in
                     MainActor.assumeIsolated {
                         self?.model.sync(from: view)

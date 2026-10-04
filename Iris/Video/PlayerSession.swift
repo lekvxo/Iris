@@ -17,13 +17,15 @@ final class PlayerSession: Identifiable {
     @ObservationIgnored private var playbackObservation: NSKeyValueObservation?
     @ObservationIgnored private var notifications: [NSObjectProtocol] = []
     @ObservationIgnored private var stopped = false
+    @ObservationIgnored private let captions: NativeCaptionPreference
 
-    init(player: AVPlayer, candidate: VideoCandidate, wasPlaying: Bool, pageURL: URL?, retryItem: (() -> AVPlayerItem)? = nil) {
+    init(player: AVPlayer, candidate: VideoCandidate, wasPlaying: Bool, pageURL: URL?, captions: NativeCaptionPreference = NativeCaptionPreference(nil), retryItem: (() -> AVPlayerItem)? = nil) {
         self.player = player
         self.candidate = candidate
         self.wasPlaying = wasPlaying
         self.pageURL = pageURL
         self.retryItem = retryItem
+        self.captions = captions
         observeItem()
         playbackObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
             let playing = player.timeControlStatus == .playing
@@ -68,6 +70,11 @@ final class PlayerSession: Identifiable {
         retryTask = Task { [weak self] in
             guard let self else { return }
             defer { self.isRetrying = false; self.retryTask = nil }
+            if let item = self.player.currentItem {
+                do { try await self.captions.apply(to: item) }
+                catch { self.error = error.localizedDescription; return }
+            }
+            guard !Task.isCancelled, !self.stopped else { return }
             if time.seconds.isFinite, time.seconds > 0 {
                 await self.player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
             }

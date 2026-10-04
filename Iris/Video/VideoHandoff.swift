@@ -13,6 +13,7 @@ extension BrowserModel {
             _ = try await view.callAsyncJavaScript("""
                 const v = [...document.querySelectorAll('video')].find(v => v.dataset.irisVideo === id);
                 if (!v) throw new Error('Video is no longer on this page');
+                window.irisPrepareNativeCaptions?.(v);
                 if (typeof v.webkitEnterFullscreen === 'function') v.webkitEnterFullscreen();
                 else if (typeof v.requestFullscreen === 'function') await v.requestFullscreen();
                 else throw new Error('No fullscreen API');
@@ -28,6 +29,7 @@ extension BrowserModel {
         session.stop()
         let time = session.player.currentTime().seconds
         playerSession = nil
+        restoreBrowserWindow()
         guard webView?.url == session.pageURL else { return }
         await returnToVideo(session.candidate, time: time, resume: session.wasPlaying)
     }
@@ -44,16 +46,18 @@ extension BrowserModel {
         var paused = false
         var wasPlaying = false
         var time = candidate.descriptor.time
+        var captions = NativeCaptionPreference(nil)
         do {
             let snapshot = try await view.callAsyncJavaScript("""
                 const v = [...document.querySelectorAll('video')].find(v => v.dataset.irisVideo === id);
                 if (!v || v.currentSrc !== source || v.mediaKeys) throw new Error('Video changed or is protected');
-                const result = {time: v.currentTime, wasPlaying: !v.paused};
+                const result = {time: v.currentTime, wasPlaying: !v.paused, captions: window.irisNativeCaptionPreference?.(v)};
                 v.pause(); return result;
                 """, arguments: ["id": candidate.descriptor.id, "source": candidate.descriptor.source], in: candidate.frame, contentWorld: .page)
             if let snapshot = snapshot as? [String: Any] {
                 time = snapshot["time"] as? Double ?? time
                 wasPlaying = snapshot["wasPlaying"] as? Bool ?? false
+                captions = NativeCaptionPreference(snapshot["captions"] as? [String: Any])
             }
             paused = true
             let cookies = await view.configuration.websiteDataStore.httpCookieStore.allCookies()
@@ -69,6 +73,7 @@ extension BrowserModel {
                 throw VideoError.unsupported
             }
             let item = AVPlayerItem(asset: asset)
+            try await captions.apply(to: item)
             let metadata = AVMutableMetadataItem()
             metadata.identifier = .commonIdentifierTitle
             metadata.value = title as NSString
@@ -76,7 +81,7 @@ extension BrowserModel {
             item.externalMetadata = [metadata]
             let retryMetadata = item.externalMetadata
             try await completeHandoff(preparationID, candidate: candidate, view: view, pageURL: pageURL,
-                                      wasPlaying: wasPlaying, retryItem: {
+                                      wasPlaying: wasPlaying, captions: captions, retryItem: {
                 let replacement = AVPlayerItem(asset: AVURLAsset(url: source, options: options))
                 replacement.externalMetadata = retryMetadata
                 return replacement
@@ -131,14 +136,14 @@ extension BrowserModel {
     }
 
     func completeHandoff(_ id: UUID, candidate: VideoCandidate, view: WKWebView, pageURL: URL?,
-                         wasPlaying: Bool, retryItem: (() -> AVPlayerItem)? = nil,
+                         wasPlaying: Bool, captions: NativeCaptionPreference = NativeCaptionPreference(nil), retryItem: (() -> AVPlayerItem)? = nil,
                          makePlayer: () async throws -> AVPlayer) async throws {
         try validatePreparation(id, candidate: candidate, view: view, pageURL: pageURL)
         let player = try await makePlayer()
         // In particular, validate after duration loading AND asynchronous seek.
         do { try validatePreparation(id, candidate: candidate, view: view, pageURL: pageURL) }
         catch { player.pause(); throw error }
-        playerSession = PlayerSession(player: player, candidate: candidate, wasPlaying: wasPlaying, pageURL: pageURL, retryItem: retryItem)
+        playerSession = PlayerSession(player: player, candidate: candidate, wasPlaying: wasPlaying, pageURL: pageURL, captions: captions, retryItem: retryItem)
     }
 
     static func cookies(_ cookies: [HTTPCookie], for url: URL) -> [HTTPCookie] {
@@ -171,5 +176,11 @@ extension BrowserModel {
 
 enum VideoError: LocalizedError {
     case unsupported
-    var errorDescription: String? { "The video is unsupported or protected. Use the website player." }
+    case noNativeCaptions
+    var errorDescription: String? {
+        switch self {
+        case .unsupported: "The video is unsupported or protected. Use the website player."
+        case .noNativeCaptions: "This source doesn't include native subtitles. Keep website playback to retain this site's subtitles."
+        }
+    }
 }

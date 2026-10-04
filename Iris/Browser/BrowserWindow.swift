@@ -32,6 +32,8 @@ struct BrowserWindow: View {
                     .id(session.id)
             }
         }
+        .frame(minWidth: 900, minHeight: 600)
+        .preferredColorScheme(.dark)
     }
 
     // Keep WebKit mounted while AVKit owns the window, preserving history and page state.
@@ -104,6 +106,7 @@ struct BrowserWindow: View {
                 .padding(.top, 12)
             }
             .safeAreaInset(edge: .top, spacing: 0) {
+                if !model.isWebFullscreen {
                 VStack {
                 tabStrip
                 HStack(spacing: 8) {
@@ -177,6 +180,7 @@ struct BrowserWindow: View {
                             .progressViewStyle(.linear).frame(height: 3).padding(.horizontal, 28)
                     }
                 }
+                }
             }
             .onChange(of: model.url) { _, url in
                 if let url { lastURL = url.absoluteString }
@@ -243,6 +247,9 @@ struct BrowserWindow: View {
                 }
             }.scrollIndicators(.hidden)
             Menu {
+                Button("Reset window size", systemImage: "arrow.up.left.and.arrow.down.right") {
+                    model.restoreBrowserWindow(reset: true)
+                }
                 Button(tabs.selected.isPinned ? "Unpin current tab" : "Pin current tab", systemImage: "pin") {
                     tabs.selected.isPinned.toggle()
                 }
