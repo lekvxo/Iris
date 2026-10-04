@@ -3,22 +3,22 @@ import SwiftData
 
 struct BrowserWindow: View {
     let initialURL: URL?
-    @State private var model: BrowserModel
+    @State private var tabs: BrowserTabs
+    private var model: BrowserModel { tabs.selected.model }
     @State private var windowID = UUID()
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.dismissWindow) private var dismissWindow
     @Environment(SettingsStore.self) private var settings
     @State private var showingSettings = false
     @State private var showingSaved = false
     @State private var confirmingRemoval: SavedSite?
     @Query private var savedSites: [SavedSite]
     @SceneStorage("lastURL") private var lastURL: String?
+    @SceneStorage("browserTabs") private var restoredTabs = ""
+    @State private var restorationReady = false
 
     init(initialURL: URL?, popupID: UUID? = nil) {
         self.initialURL = initialURL
-        // A popup window adopts the model its opener prepared; later inits find nothing and are discarded.
-        _model = State(initialValue: popupID.flatMap { BrowserModel.adoptPopup($0) } ?? BrowserModel())
+        _tabs = State(initialValue: BrowserTabs(url: initialURL, popupID: popupID))
     }
 
     var body: some View {
@@ -37,7 +37,17 @@ struct BrowserWindow: View {
     // Keep WebKit mounted while AVKit owns the window, preserving history and page state.
     private var browser: some View {
         // A restored window resumes where the user left it, not at the link that opened it.
-        WebView(model: model, initialURL: lastURL.flatMap(URL.init(string:)) ?? initialURL ?? URL(string: "https://www.google.com")!, settings: settings, probeInterval: settings.energy.probeInterval)
+        ZStack {
+            if restorationReady {
+                ForEach(tabs.tabs.filter(\.hasBeenSelected)) { tab in
+                    WebView(model: tab.model, initialURL: tab.initialURL, settings: settings, probeInterval: settings.energy.probeInterval)
+                        .opacity(tab.id == tabs.selectedID ? 1 : 0)
+                        .allowsHitTesting(tab.id == tabs.selectedID)
+                        .accessibilityHidden(tab.id != tabs.selectedID)
+                }
+            }
+        }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay {
                 if !settings.blocker.isReady && model.isInitializing {
                     VStack {
@@ -93,7 +103,9 @@ struct BrowserWindow: View {
                 }
                 .padding(.top, 12)
             }
-            .ornament(visibility: model.playerSession == nil ? .visible : .hidden, attachmentAnchor: .scene(.top), contentAlignment: .bottom) {
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack {
+                tabStrip
                 HStack(spacing: 8) {
                     tool("Back", "chevron.left", disabled: !model.canGoBack) { model.webView?.goBack() }
                     tool("Forward", "chevron.right", disabled: !model.canGoForward) { model.webView?.goForward() }
@@ -104,7 +116,9 @@ struct BrowserWindow: View {
                         } else { Task { await model.reloadPage(settings: settings) } }
                     }
                     AddressField(text: model.url?.absoluteString ?? "") { model.load(InputRouter.destination(for: $0)) }
-                        .frame(width: 420, height: 44)
+                        .frame(minWidth: 180, maxWidth: .infinity)
+                        .frame(height: 44)
+                        .layoutPriority(1)
                         .disabled(model.isInitializing)
                     Menu {
                         Button("Save offline copy", systemImage: "arrow.down.doc") {
@@ -153,6 +167,7 @@ struct BrowserWindow: View {
                     BlockingButton(model: model)
                     tool("Settings", "gear") { showingSettings = true }
                 }
+                }
                 .padding(12)
                 .glassBackgroundEffect()
                 // Overlaid so showing progress never changes the toolbar's size.
@@ -167,22 +182,73 @@ struct BrowserWindow: View {
                 if let url { lastURL = url.absoluteString }
             }
             .onAppear {
+                if !restorationReady {
+                    if initialURL == nil, !restoredTabs.isEmpty { tabs.restore(restoredTabs) }
+                    else if initialURL == nil, let lastURL, let url = URL(string: lastURL) { tabs = BrowserTabs(url: url) }
+                    restorationReady = true
+                }
                 updateActivity()
-                model.openWindow = { openWindow(id: "browser", value: $0) }
-                model.closeWindow = { dismissWindow() }
-                model.allowedSites = settings.navigationSites
+                for tab in tabs.tabs { tab.model.allowedSites = settings.navigationSites }
+            }
+            .onChange(of: tabs.snapshot) { _, value in restoredTabs = value }
+            .onChange(of: tabs.selectedID) { _, _ in updateActivity() }
+            .onChange(of: tabs.tabs.count) { _, _ in
+                for tab in tabs.tabs { tab.model.allowedSites = settings.navigationSites }
+                updateActivity()
             }
             .onChange(of: scenePhase) { _, _ in updateActivity() }
             .onDisappear { settings.energy.setForeground(false, window: windowID) }
-            .onChange(of: settings.navigationSites) { _, sites in model.allowedSites = sites }
+            .onChange(of: settings.navigationSites) { _, sites in
+                for tab in tabs.tabs { tab.model.allowedSites = sites }
+            }
             .sheet(isPresented: $showingSettings) { SettingsView() }
 
     }
 
     private func updateActivity() {
         // Inactive is not background: system focus changes must not pause legitimate audio.
-        model.isBackgrounded = scenePhase == .background
-        settings.energy.setForeground(!model.isBackgrounded, window: windowID)
+        for tab in tabs.tabs {
+            tab.model.isBackgrounded = scenePhase == .background || tab.id != tabs.selectedID
+            if let view = tab.model.webView, let coordinator = view.navigationDelegate as? WebView.Coordinator {
+                coordinator.updateVideoPolicy(view)
+            }
+        }
+        settings.energy.setForeground(scenePhase != .background, window: windowID)
+    }
+
+    private var tabStrip: some View {
+        HStack {
+            ScrollView(.horizontal) {
+                HStack {
+                    ForEach(tabs.ordered) { tab in
+                        HStack {
+                            Button {
+                                tabs.select(tab.id)
+                            } label: {
+                                Label(tab.title, systemImage: tab.isPinned ? "pin.fill" : "globe")
+                                    .lineLimit(1).frame(maxWidth: 180)
+                            }
+                            .tint(tab.id == tabs.selectedID ? .accentColor : .secondary)
+                            .accessibilityAddTraits(tab.id == tabs.selectedID ? .isSelected : [])
+                            .contextMenu {
+                                Button(tab.isPinned ? "Unpin tab" : "Pin tab", systemImage: tab.isPinned ? "pin.slash" : "pin") {
+                                    tab.isPinned.toggle()
+                                }
+                                Button("Close tab", systemImage: "xmark", role: .destructive) { tabs.close(tab.id) }
+                            }
+                            Button("Close \(tab.title)", systemImage: "xmark") { tabs.close(tab.id) }
+                                .labelStyle(.iconOnly)
+                        }
+                    }
+                }
+            }.scrollIndicators(.hidden)
+            Menu {
+                Button(tabs.selected.isPinned ? "Unpin current tab" : "Pin current tab", systemImage: "pin") {
+                    tabs.selected.isPinned.toggle()
+                }
+            } label: { Label("Tab options", systemImage: "ellipsis") }.labelStyle(.iconOnly)
+            tool("New tab", "plus") { tabs.open() }
+        }
     }
 
     private var currentSavedSite: SavedSite? {

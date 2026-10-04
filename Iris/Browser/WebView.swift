@@ -50,6 +50,8 @@ struct WebView: UIViewRepresentable {
             source: ScriptSource.read("VideoProbe"), injectionTime: .atDocumentEnd, forMainFrameOnly: false))
         configuration.userContentController = controller
         let view = WKWebView(frame: .zero, configuration: configuration)
+        // Google's bare WebKit fallback is the legacy homepage. Advertise the desktop Safari version.
+        view.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15"
         view.allowsBackForwardNavigationGestures = true
         view.navigationDelegate = coordinator
         view.uiDelegate = coordinator

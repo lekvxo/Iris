@@ -105,6 +105,11 @@
     window.addEventListener('message', event => {
         const message = event.data;
         if (!message || typeof message !== 'object') return;
+        if (message.type === 'iris-tab-hidden') {
+            for (const video of document.querySelectorAll('video')) video.pause();
+            for (const frame of document.querySelectorAll('iframe')) frame.contentWindow?.postMessage(message, '*');
+            return;
+        }
         if (message.type === 'iris-video-probe-ready') {
             if ([...document.querySelectorAll('iframe')].some(frame => frame.contentWindow === event.source)) {
                 event.source.postMessage(policy, '*');
