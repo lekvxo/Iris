@@ -1,4 +1,10 @@
-# YouTube pilot checks — October 2, 2026
+# Site checks
+
+## October 4 headset update
+
+Max successfully opened Iris for an initial headset test. On Miruro (`barelystarted.miruro.tv`, One Piece), subtitles appeared on the website and Apple's small fullscreen player but disappeared when entering an Apple environment; returning to the page also left the browser at a distorted size. The October 4 update is installed and includes native caption preparation and browser geometry restoration, awaiting the same episode/server retest. Miruro's public homepage returned a Cloudflare block to the diagnostic HTTP fetch, so no automated live-video reproduction was completed. Full local suite: 61 passed, one optional download skipped. Current installed build: `build/Headset/Build/Products/Release-xros/Iris.app`. The following October 2 entries are historical, not current headset connection status.
+
+## YouTube pilot checks — October 2, 2026
 
 | Check | Platform | Result |
 | --- | --- | --- |

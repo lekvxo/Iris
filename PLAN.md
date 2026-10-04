@@ -218,7 +218,7 @@ v1 is done when every box below passes on the headset.
 - [ ] Blocked chip appears and Open once loads the target
 - [ ] Typing a word searches Google; typing a domain opens the site
 - [ ] Back, forward, reload and stop work by gaze and pinch
-- [ ] A new-tab link opens a second Iris window
+- [ ] A new-tab link opens a tab in the same Iris window (October 4 scope update below)
 - [ ] News site shows clearly fewer ads with shield on; shield off for one site sticks after relaunch
 - [ ] Filter lists refresh after 7 days without freezing the UI
 - [ ] Direct MP4 and HLS video open in Apple's player with environments and resume at the right time
@@ -238,3 +238,11 @@ v1 is done when every box below passes on the headset.
 
 - Personal use: install from Xcode to the paired headset. This is the current target. A paid developer account keeps it working for a year.
 - Later, if Iris goes public: a WebKit browser with content blocking is allowed. Download filter lists at runtime rather than bundling them, and do not add stream extraction for YouTube or DRM sites, which review will reject.
+
+## October 4 headset feedback: scope amendment
+
+Max now requests tabs in one browser window, replacing the original P1.5/§7.6 new-window behavior. Approved new-window links adopt their real WebKit views into tabs, preserving OAuth opener communication. Tabs can be pinned and restored; hidden-tab video pauses. Browser controls reserve space above the website. Google's desktop Safari layout and dark appearance replace its bare-WebKit fallback.
+
+The supplied blue/violet logo replaces the frosted icon and nearly fills its circular mask. Playback work adds a stable constrained WebKit host, browser-size restoration and a Reset window size action. Native fullscreen prepares the selected HTML text track and keeps cues inside the video; AVPlayer handoff selects a matching native subtitle track when the source includes one. Website-only subtitles are still a handoff limit. Miruro's environment transition must be retested on the headset; unit tests cannot certify its immersive compositor.
+
+Apple documents Cinema within its TV app, and no public visionOS API to open that environment was found. Iris continues using AVKit's available system environments. Sources: https://support.apple.com/guide/apple-vision-pro/watch-movies-and-tv-in-an-environment-tan7241583f5/visionos and https://developer.apple.com/documentation/visionos/building-an-immersive-media-viewing-experience.
