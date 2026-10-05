@@ -16,7 +16,10 @@ extension BrowserModel {
                 window.irisPrepareNativeCaptions?.(v);
                 if (typeof v.webkitEnterFullscreen === 'function') v.webkitEnterFullscreen();
                 else if (typeof v.requestFullscreen === 'function') await v.requestFullscreen();
-                else throw new Error('No fullscreen API');
+                else {
+                    window.irisRestoreNativeCaptions?.(v);
+                    throw new Error('No fullscreen API');
+                }
                 """, arguments: ["id": candidate.descriptor.id], in: candidate.frame, contentWorld: .page)
         } catch {
             guard videoPreparationID == preparationID, !Task.isCancelled else { return }
@@ -51,7 +54,7 @@ extension BrowserModel {
             let snapshot = try await view.callAsyncJavaScript("""
                 const v = [...document.querySelectorAll('video')].find(v => v.dataset.irisVideo === id);
                 if (!v || v.currentSrc !== source || v.mediaKeys) throw new Error('Video changed or is protected');
-                const result = {time: v.currentTime, wasPlaying: !v.paused, captions: window.irisNativeCaptionPreference?.(v)};
+                const result = {time: v.currentTime, wasPlaying: !v.paused, captions: window.irisNativeCaptionPreference?.(v) ?? {known: false}};
                 v.pause(); return result;
                 """, arguments: ["id": candidate.descriptor.id, "source": candidate.descriptor.source], in: candidate.frame, contentWorld: .page)
             if let snapshot = snapshot as? [String: Any] {
