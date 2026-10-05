@@ -129,7 +129,9 @@ struct WebView: UIViewRepresentable {
                 let active = body["active"] as? Int ?? 0
                 let custom = body["custom"] as? Int ?? 0
                 let selected = body["selected"] as? Int ?? -1
-                NSLog("Iris captions selected event=%ld ready=%ld tracks=%ld showing=%ld hidden=%ld cues=%ld active=%ld custom=%ld selectedCues=%ld", event, ready, tracks, showing, hidden, cues, active, custom, selected)
+                let renderer = body["renderer"] as? Int ?? 0
+                let nativeControls = body["nativeControls"] as? Int ?? 0
+                NSLog("Iris captions selected event=%ld ready=%ld tracks=%ld showing=%ld hidden=%ld cues=%ld active=%ld custom=%ld selectedCues=%ld renderer=%ld nativeControls=%ld", event, ready, tracks, showing, hidden, cues, active, custom, selected, renderer, nativeControls)
                 return
             }
             if message.name == "irisFullscreen", let body = message.body as? [String: Any],

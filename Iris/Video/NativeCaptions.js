@@ -5,6 +5,100 @@
     const bridges = new WeakMap();
     const nativeTracks = new WeakMap();
     const pending = new WeakMap();
+    const renderers = new WeakMap();
+    function prepareRenderer(video) {
+        if (location.hostname !== 'strm.cx' || renderers.has(video)) return;
+        const element = customPlayer(video);
+        if (!element) return;
+        let player;
+        // The public remote-control discovery event also works with React players,
+        // whose DOM element does not expose the controller's properties.
+        element.dispatchEvent(new CustomEvent('find-media-player', {
+            bubbles: true, composed: true, detail: value => { player = value; }
+        }));
+        const source = selections.has(element) ? selections.get(element) : player?.textTracks?.selected;
+        if (typeof player?.state?.controls !== 'boolean' || !player.textTracks ||
+            (!source && !player.textTracks.length) || (source &&
+                (typeof source.setMode !== 'function' || !source.id || source.mode !== 'showing' ||
+                    !Array.isArray(source.cues) || !['subtitles', 'captions'].includes(source.kind)))) return;
+        const state = {player, controls: player.state.controls, source, starting: true, copies: [], native: null};
+        renderers.set(video, state);
+        // Ask the website's own renderer to manage its native tracks. An unrelated
+        // addTextTrack track can be disabled by the player's selection machinery.
+        player.controls = true;
+    }
+    function clearRendererCopies(state) {
+        for (const name of ['load', 'add-cue', 'remove-cue']) state.selected?.removeEventListener(name, state.update);
+        for (const name of ['load', 'error']) state.element?.removeEventListener(name, state.update);
+        if (state.native && state.copies.length) {
+            const mode = state.native.mode;
+            if (mode === 'disabled') state.native.mode = 'hidden';
+            const present = new Set(state.native.cues || []);
+            for (const cue of state.copies) if (present.has(cue)) state.native.removeCue(cue);
+            state.native.mode = mode;
+        }
+        state.copies = [];
+        state.selected = null;
+        state.element = null;
+    }
+    function updateRenderer(video, source) {
+        const state = renderers.get(video);
+        if (!state || state.starting) return;
+        if (state.selected === source) return;
+        clearRendererCopies(state);
+        state.native = null;
+        if (!source || source.mode !== 'showing') return;
+        const elements = [...video.querySelectorAll('track')].filter(t => t.id === source.id &&
+            ['subtitles', 'captions'].includes(t.kind));
+        if (elements.length !== 1) return;
+        const native = elements[0].track;
+        state.native = native;
+        state.selected = source;
+        state.element = elements[0];
+        // Use the existing renderer-owned track. Preserve any loaded native cues;
+        // only supply already-loaded website cues when the native resource is empty.
+        native.mode = 'hidden';
+        if (!native.cues?.length) {
+            const copies = new Map();
+            state.update = () => {
+                if (source.mode !== 'showing' || native.mode === 'disabled') return;
+                const present = new Set(native.cues || []);
+                // WebKit clears programmatic cues while the HTML track's own
+                // resource finishes loading (or fails). Reconcile after that event.
+                for (const [cue, copy] of copies) if (!present.has(copy)) copies.delete(cue);
+                const copied = new Set(copies.values());
+                if (state.element.readyState === 2 && [...present].some(cue => !copied.has(cue))) {
+                    for (const copy of copies.values()) native.removeCue(copy);
+                    copies.clear(); state.copies = []; return;
+                }
+                const cues = new Set(source.cues.slice(0, 20000));
+                for (const [cue, copy] of copies) if (!cues.has(cue)) { native.removeCue(copy); copies.delete(cue); }
+                for (const cue of cues) {
+                    if (copies.has(cue) || !Number.isFinite(cue.startTime) || !Number.isFinite(cue.endTime) ||
+                        cue.endTime <= cue.startTime || typeof cue.text !== 'string') continue;
+                    const copy = new VTTCue(cue.startTime, cue.endTime, cue.text);
+                    native.addCue(copy); copies.set(cue, copy);
+                }
+                state.copies = [...copies.values()];
+            };
+            for (const name of ['load', 'add-cue', 'remove-cue']) source.addEventListener(name, state.update);
+            for (const name of ['load', 'error']) state.element.addEventListener(name, state.update);
+            state.update();
+        }
+        native.mode = 'showing';
+        diagnose(video, 4);
+    }
+    function restoreRenderer(video) {
+        const state = renderers.get(video);
+        if (!state) return;
+        clearTimeout(state.activation);
+        renderers.delete(video);
+        clearRendererCopies(state);
+        state.player.controls = state.controls;
+        // A rejected or cancelled entry must also preserve the inline selection
+        // that the native-renderer transition may temporarily have deselected.
+        if (state.starting) state.source?.setMode('showing');
+    }
     function nativeActive(video) {
         return video.webkitDisplayingFullscreen || ['fullscreen', 'picture-in-picture'].includes(video.webkitPresentationMode);
     }
@@ -62,7 +156,8 @@
             typeof track.addEventListener !== 'function' || !Array.isArray(track.cues))) return;
         selections.set(player, track);
         for (const video of player.querySelectorAll('video')) {
-            if (sessions.has(video)) transfer(video);
+            if (renderers.has(video)) updateRenderer(video, track);
+            else if (sessions.has(video)) transfer(video);
             diagnose(video, 4);
         }
     }, true);
@@ -77,6 +172,7 @@
         bridges.delete(video);
     }
     function transfer(video) {
+        if (renderers.has(video)) return;
         const source = selections.get(customPlayer(video));
         const previous = bridges.get(video);
         if (previous?.source === source) return;
@@ -115,6 +211,7 @@
     }
     window.irisPrepareNativeCaptions = video => {
         sessions.add(video);
+        prepareRenderer(video);
         transfer(video);
         clearTimeout(pending.get(video));
         pending.set(video, setTimeout(() => {
@@ -153,13 +250,27 @@
             cues: tracks.reduce((n, t) => n + (t.cues?.length || 0), 0),
             active: tracks.reduce((n, t) => n + (t.activeCues?.length || 0), 0),
             custom: customPlayer(video)?.hasAttribute('data-captions') ? 1 : 0,
+            renderer: renderers.has(video) ? 1 : 0,
+            nativeControls: renderers.get(video)?.player.state.controls ? 1 : 0,
             selected: selections.get(customPlayer(video))?.cues?.length ?? -1});
     }
     function begin(video) {
         clearTimeout(pending.get(video));
         pending.delete(video);
         sessions.add(video);
+        prepareRenderer(video);
         transfer(video);
+        const renderer = renderers.get(video);
+        if (renderer?.starting && !renderer.activation) {
+            renderer.activation = setTimeout(() => {
+                if (renderers.get(video) !== renderer || !sessions.has(video)) return;
+                renderer.starting = false;
+                // Controls changes can transiently deselect the custom track. Restore
+                // the explicit pre-entry selection once, through the player's API.
+                renderer.source?.setMode('showing');
+                updateRenderer(video, renderer.player.textTracks.selected || renderer.source);
+            }, 0);
+        }
         const bridge = bridges.get(video);
         if (bridge && !bridge.entered) {
             bridge.entered = true;
@@ -188,10 +299,11 @@
     function end(video) {
         clearTimeout(pending.get(video));
         pending.delete(video);
+        sessions.delete(video);
+        restoreRenderer(video);
         clearBridge(video);
         clearInterval(states.get(video));
         states.delete(video);
-        sessions.delete(video);
         diagnose(video, 3);
         report(false);
     }
@@ -217,8 +329,10 @@
     });
     window.addEventListener('pagehide', () => {
         for (const video of [...sessions]) {
+            sessions.delete(video);
             clearTimeout(pending.get(video)); pending.delete(video);
             clearInterval(states.get(video)); states.delete(video); clearBridge(video);
+            restoreRenderer(video);
         }
         sessions.clear();
     });

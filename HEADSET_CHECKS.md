@@ -1,6 +1,15 @@
 # Iris headset acceptance — PLAN.md §7
 
-Build identity: Iris 1.0 **build 2** is installed and launched on Max’s Vision Pro. The device registry independently confirms `com.max.iris`, version `1.0`, bundle version `2`. Open Iris Settings → About and confirm Build 2, then reload the episode before the caption checks. The new About rows identify the installed bundle version; the subtitle correction is unchanged from `39a150c`. Current console: `/private/tmp/iris-build-2-console.log`. Both Simulator and signed Release builds passed without warnings.
+Build 2 failed Max's actual mini-player/Moon retest on October 5: copied captions were switched off again after entry. Build 3 uses the website player's public native-caption renderer and its existing selected track. Iris 1.0 build 3 is installed and launched on Max’s headset; the independent device registry confirms bundle version 3. Numeric diagnostics: `/private/tmp/iris-build-3-console.log`. Visual acceptance is pending.
+
+- [ ] Settings → About identifies Build 3. Reload the episode once after updating.
+- [ ] With English captions visible inline, test Iris's toolbar fullscreen button and the website's fullscreen button. Both must show video/audio and readable captions, with no black screen.
+- [ ] Move playback into Moon; captions must remain visible. Try native Off, English and Auto, and confirm Off stays off.
+- [ ] Exit fullscreen: the website's controls, captions and normal Iris window return. Repeat entry and switch episodes/languages; no duplicate subtitles or tracks.
+- [ ] With website captions initially off, enter fullscreen and enable English in Apple's menu. Cancel or reject entry: inline caption selection must remain unchanged.
+
+
+Previous installation: Iris 1.0 build 2 was independently verified on-device, but Max confirmed the same subtitle/fullscreen failures. Its console is `/private/tmp/iris-build-2-console.log`. The previous transition-only correction is superseded by build 3.
 
 October 5 current candidate: actual headset logs prove 289 website cues reached a showing native track, which then became disabled during fullscreen entry. A one-time post-entry selection restores that track; subsequent Off choices and duplicate events remain respected. All 74 tests passed, including eight caption tests; Simulator and signed Release builds had zero warnings and signature verification passed. Installed and launched on Max’s Vision Pro on October 5 after the headset reconnected. Live console: `/private/tmp/iris-caption-transition-console.log`. Visual acceptance remains pending. Reload and test both fullscreen buttons, Moon, English/Off, seeking and return inline. Console must show the copied native track remains showing with cues after entry before any claim of visual success.
 

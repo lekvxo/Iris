@@ -191,6 +191,83 @@ import AVFoundation
         XCTAssertEqual(result as? Bool, true)
     }
 
+    func testRendererOwnedNativeTrackSurvivesCustomRendererAndPreservesOff() async throws {
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.addUserScript(WKUserScript(source: ScriptSource.read("NativeCaptions"), injectionTime: .atDocumentStart, forMainFrameOnly: false))
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.loadHTMLString("<media-player id='p' data-media-player><video id='v'><track id='english' kind='subtitles' label='English' srclang='en'></video></media-player>", baseURL: URL(string: "https://strm.cx"))
+        for _ in 0..<450 {
+            if let value = try? await view.evaluateJavaScript("!!document.getElementById('v') && typeof irisPrepareNativeCaptions === 'function'"), value as? Bool == true { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let result = try await view.callAsyncJavaScript("""
+            const p = document.getElementById('p'), v = document.getElementById('v');
+            const native = document.getElementById('english').track;
+            const source = Object.assign(new EventTarget(), {id:'english', kind:'subtitles', language:'en', label:'English',
+                mode:'showing', cues:[new VTTCue(0,100,'Fixture')]});
+            const controller = {state:{controls:false}, textTracks:{selected:source, length:1}};
+            const selected = track => {
+                controller.textTracks.selected = track;
+                const event = new CustomEvent('text-track-change', {detail:track});
+                Object.defineProperty(event, 'target', {get: () => controller});
+                p.dispatchEvent(event);
+            };
+            source.setMode = mode => {
+                if (source.mode === mode) return;
+                source.mode = mode;
+                if (controller.state.controls) native.mode = mode;
+                selected(mode === 'showing' ? source : null);
+            };
+            // Reproduce NativeTextRenderer's documented ownership: it disables its
+            // native track in custom mode and syncs native selection in native mode.
+            v.textTracks.onchange = () => {
+                if (!controller.state.controls) native.mode = 'disabled';
+                else source.setMode(native.mode === 'showing' ? 'showing' : 'disabled');
+            };
+            Object.defineProperty(controller, 'controls', {set: value => {
+                controller.state.controls = value;
+                if (value) source.setMode('disabled');
+                else native.mode = 'disabled';
+            }});
+            p.addEventListener('find-media-player', event => event.detail(controller));
+            native.mode = 'disabled'; selected(source);
+            irisPrepareNativeCaptions(v); v.dispatchEvent(new Event('webkitbeginfullscreen'));
+            await new Promise(resolve => setTimeout(resolve, 80));
+            const stable = controller.state.controls && native.mode === 'showing' && native.cues?.length === 1 &&
+                source.mode === 'showing' && v.textTracks.length === 1;
+            const observed = {controls:controller.state.controls, mode:native.mode, cues:native.cues?.length,
+                source:source.mode, tracks:v.textTracks.length};
+            source.cues.push(new VTTCue(100,200,'Later')); source.dispatchEvent(new Event('add-cue'));
+            const late = native.cues?.length === 2;
+            native.mode = 'disabled';
+            await new Promise(resolve => setTimeout(resolve, 40));
+            v.dispatchEvent(new Event('webkitbeginfullscreen')); source.dispatchEvent(new Event('load'));
+            await new Promise(resolve => setTimeout(resolve, 40));
+            const off = native.mode === 'disabled' && controller.textTracks.selected === null;
+            irisRestoreNativeCaptions(v);
+            const restored = !controller.state.controls && native.mode === 'disabled';
+            irisPrepareNativeCaptions(v); v.dispatchEvent(new Event('webkitbeginfullscreen'));
+            await new Promise(resolve => setTimeout(resolve, 40));
+            const startsOff = controller.state.controls && native.mode === 'disabled';
+            native.mode = 'showing';
+            await new Promise(resolve => setTimeout(resolve, 40));
+            const nativeOn = native.mode === 'showing' && native.cues?.length === 2 && source.mode === 'showing';
+            irisRestoreNativeCaptions(v);
+            source.setMode('showing'); irisPrepareNativeCaptions(v);
+            v.dispatchEvent(new Event('webkitbeginfullscreen')); irisRestoreNativeCaptions(v);
+            await new Promise(resolve => setTimeout(resolve, 40));
+            const cancelled = !controller.state.controls && native.mode === 'disabled' && source.mode === 'showing';
+            irisPrepareNativeCaptions(v); window.dispatchEvent(new Event('pagehide'));
+            await new Promise(resolve => setTimeout(resolve, 40));
+            return {stable, late, off, restored, startsOff, nativeOn, observed,
+                cancelled, navigation: !controller.state.controls && native.mode === 'disabled' &&
+                    source.mode === 'showing' && v.textTracks.length === 1};
+            """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+        for key in ["stable", "late", "off", "restored", "startsOff", "nativeOn", "cancelled", "navigation"] {
+            XCTAssertEqual(result?[key] as? Bool, true, "\(key): \(result?["observed"] ?? "missing")")
+        }
+    }
+
     func testFullscreenSelectionResetRestoresOnceAndPreservesNativeOff() async throws {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.addUserScript(WKUserScript(source: ScriptSource.read("NativeCaptions"), injectionTime: .atDocumentStart, forMainFrameOnly: false))
