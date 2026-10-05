@@ -2,7 +2,7 @@
 
 October 4 second subtitle recovery: Max confirmed dark appearance, rejected Cinema (removed), and reported that the first caption fix still failed: website fullscreen was black, toolbar fullscreen played without captions, and Moon also lost captions. The replacement bridges the existing, unambiguous subtitle resource into a native track and routes single-video Vidstack wrapper fullscreen through the working video API. All **73 tests passed** with no failures or skips; Simulator and signed Release builds have no compiler warnings. This proves the tested WebKit track-loading/selection lifecycle, not headset subtitle visibility. Both entry paths and Moon remain device acceptance checks.
 
-The current candidate is `build/HeadsetCaptions/Build/Products/Release-xros/Iris.app`. To reinstall, use `xcrun devicectl device install app --device 00008112-000C31EC2681A01E build/HeadsetCaptions/Build/Products/Release-xros/Iris.app` from the repository root. Keep `project.yml` as the source of truth; supply development team `F47GC3BYK3` as a build-command override. Detailed findings and primary sources are in SITE_CHECK_RESULTS.md.
+The signature-verified Release is installed on Max’s paired Vision Pro. The current candidate is `build/HeadsetCaptions/Build/Products/Release-xros/Iris.app`. To reinstall, use `xcrun devicectl device install app --device 00008112-000C31EC2681A01E build/HeadsetCaptions/Build/Products/Release-xros/Iris.app` from the repository root. Keep `project.yml` as the source of truth; supply development team `F47GC3BYK3` as a build-command override. Detailed findings and primary sources are in SITE_CHECK_RESULTS.md.
 
 One checklist, following §7's order:
 
