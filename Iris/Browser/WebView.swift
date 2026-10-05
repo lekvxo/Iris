@@ -50,7 +50,7 @@ struct WebView: UIViewRepresentable {
         controller.addUserScript(WKUserScript(
             source: ScriptSource.read("VideoProbe"), injectionTime: .atDocumentEnd, forMainFrameOnly: false))
         controller.addUserScript(WKUserScript(
-            source: ScriptSource.read("NativeCaptions"), injectionTime: .atDocumentEnd, forMainFrameOnly: false))
+            source: ScriptSource.read("NativeCaptions"), injectionTime: .atDocumentStart, forMainFrameOnly: false))
         configuration.userContentController = controller
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.overrideUserInterfaceStyle = .dark
@@ -128,7 +128,8 @@ struct WebView: UIViewRepresentable {
                 let hidden = body["hidden"] as? Int ?? 0
                 let active = body["active"] as? Int ?? 0
                 let custom = body["custom"] as? Int ?? 0
-                NSLog("Iris captions baseline event=%ld ready=%ld tracks=%ld showing=%ld hidden=%ld cues=%ld active=%ld custom=%ld", event, ready, tracks, showing, hidden, cues, active, custom)
+                let selected = body["selected"] as? Int ?? -1
+                NSLog("Iris captions selected event=%ld ready=%ld tracks=%ld showing=%ld hidden=%ld cues=%ld active=%ld custom=%ld selectedCues=%ld", event, ready, tracks, showing, hidden, cues, active, custom, selected)
                 return
             }
             if message.name == "irisFullscreen", let body = message.body as? [String: Any],
