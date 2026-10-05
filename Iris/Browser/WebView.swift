@@ -1,7 +1,6 @@
 import SwiftUI
 import WebKit
 import SwiftData
-import OSLog
 
 struct WebView: UIViewRepresentable {
     let model: BrowserModel
@@ -101,7 +100,6 @@ struct WebView: UIViewRepresentable {
     }
 
     @MainActor final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
-        private static let captionLog = Logger(subsystem: "com.max.iris", category: "NativeCaptions")
         let model: BrowserModel
         var observations: [NSKeyValueObservation] = []
         weak var settings: SettingsStore?
@@ -127,8 +125,10 @@ struct WebView: UIViewRepresentable {
                 let tracks = body["tracks"] as? Int ?? 0
                 let showing = body["showing"] as? Int ?? 0
                 let cues = body["cues"] as? Int ?? 0
-                let bridgeReady = body["bridgeReady"] as? Int ?? -1
-                Self.captionLog.notice("event=\(event) ready=\(ready) tracks=\(tracks) showing=\(showing) cues=\(cues) bridgeReady=\(bridgeReady)")
+                let hidden = body["hidden"] as? Int ?? 0
+                let active = body["active"] as? Int ?? 0
+                let custom = body["custom"] as? Int ?? 0
+                NSLog("Iris captions baseline event=%ld ready=%ld tracks=%ld showing=%ld hidden=%ld cues=%ld active=%ld custom=%ld", event, ready, tracks, showing, hidden, cues, active, custom)
                 return
             }
             if message.name == "irisFullscreen", let body = message.body as? [String: Any],

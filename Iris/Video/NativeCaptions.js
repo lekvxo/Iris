@@ -38,187 +38,63 @@
     function report(fullscreen) {
         window.webkit?.messageHandlers.irisFullscreen?.postMessage({fullscreen});
     }
+    // Observe the unmodified WebKit path. No prototype overrides, track writes,
+    // extra subtitle resources, controls changes, or fullscreen redirection.
     function diagnose(video, event) {
-        const bridge = states.get(video)?.bridge;
-        // Counts only: no browsing URLs, subtitle text, or media credentials.
+        const tracks = [...video.textTracks];
         window.webkit?.messageHandlers.irisFullscreen?.postMessage({captionEvent: event,
-            ready: video.readyState, tracks: video.textTracks.length,
-            showing: [...video.textTracks].filter(t => t.mode === 'showing').length,
-            cues: bridge?.track.cues?.length || 0, bridgeReady: bridge?.readyState ?? -1});
-    }
-    function reconcileBridge(video, state) {
-        if (state.nativeRenderer) return;
-        const {element} = preference(video);
-        if (state.bridge && (state.source !== element || state.sourceURL !== element?.src)) {
-            state.bridge.track.mode = 'disabled';
-            state.bridge.remove();
-            state.bridge = null;
-        }
-        if (!element || state.bridge || state.nativeOff) return;
-        const bridge = document.createElement('track');
-        bridge.setAttribute('data-iris-caption', '');
-        bridge.kind = element.kind;
-        bridge.label = `${element.label || element.srclang || 'Captions'} (Iris)`;
-        bridge.srclang = element.srclang;
-        bridge.src = element.src;
-        state.source = element;
-        state.sourceURL = element.src;
-        state.bridge = bridge;
-        state.bridgeLoaded = false;
-        bridge.addEventListener('load', () => {
-            if (states.get(video) !== state || state.bridge !== bridge) return;
-            // WebKit's initial automatic track selection can disable a newly
-            // inserted track. Select once after loading, then respect native Off.
-            bridge.track.mode = 'showing';
-            state.bridgeLoaded = true;
-            diagnose(video, 2);
-        }, {once: true});
-        bridge.addEventListener('error', () => diagnose(video, 3), {once: true});
-        video.append(bridge);
-        bridge.track.mode = 'showing';
-    }
-    function reconcile(video, state) {
-        if (state.player) { reconcileBridge(video, state); return; }
-        // Stop owning a track as soon as the site or Apple's controls change it.
-        // Never repeatedly force a hidden/disabled track back on.
-        if (state.track && state.track.mode !== 'showing') {
-            state.released.add(state.track);
-            state.track = null;
-        }
-        const {track} = preference(video);
-        if (!track || track.mode !== 'hidden' || state.released.has(track)) return;
-        if (state.track && state.track !== track && state.track.mode === 'showing') return;
-        state.track = track;
-        track.mode = 'showing';
-    }
-    function prepare(video) {
-        let state = states.get(video);
-        if (!state) {
-            const player = customPlayer(video);
-            state = {track: null, released: new WeakSet(), cleanup: [], player,
-                nativeRenderer: [...video.textTracks].some(t =>
-                    ['subtitles', 'captions'].includes(t.kind) && t.mode === 'showing')};
-            states.set(video, state);
-            sessions.add(video);
-            if (player) {
-                const observer = new MutationObserver(() => reconcileBridge(video, state));
-                observer.observe(player, {subtree: true, childList: true, attributes: true,
-                    attributeFilter: ['data-captions', 'src', 'kind', 'srclang']});
-                const selectionChanged = () => {
-                    if (state.bridgeLoaded && state.bridge && state.bridge.track.mode !== 'showing') state.nativeOff = true;
-                };
-                video.textTracks.addEventListener('change', selectionChanged);
-                state.cleanup.push(() => observer.disconnect(),
-                    () => video.textTracks.removeEventListener('change', selectionChanged));
-            }
-            // A synchronous API failure, rejected promise, or fullscreenerror restores
-            // immediately. This bounded timeout also covers a request with no begin event.
-            state.pending = setTimeout(() => nativeActive(video) ? begin(video) : restore(video), 5000);
-        }
-        reconcile(video, state);
-        diagnose(video, 0);
+            ready: video.readyState, tracks: tracks.length,
+            showing: tracks.filter(t => t.mode === 'showing').length,
+            hidden: tracks.filter(t => t.mode === 'hidden').length,
+            cues: tracks.reduce((n, t) => n + (t.cues?.length || 0), 0),
+            active: tracks.reduce((n, t) => n + (t.activeCues?.length || 0), 0),
+            custom: customPlayer(video)?.hasAttribute('data-captions') ? 1 : 0});
     }
     function begin(video) {
-        prepare(video);
-        const state = states.get(video);
-        clearTimeout(state.pending);
         diagnose(video, 1);
-        if (state.player) { report(true); return; }
-        if (!state.observing) {
-            state.observing = true;
-            const update = () => {
-                for (const track of video.textTracks) {
-                    if (state.observed.has(track)) continue;
-                    state.observed.add(track);
-                    track.addEventListener('cuechange', update);
-                    state.cleanup.push(() => track.removeEventListener('cuechange', update));
-                }
-                reconcile(video, state);
-            };
-            state.observed = new WeakSet();
-            for (const [target, name] of [[video.textTracks, 'addtrack'], [video.textTracks, 'removetrack'],
-                [video.textTracks, 'change'], [video, 'loadedmetadata'], [video, 'load']]) {
-                target.addEventListener(name, update, true);
-                state.cleanup.push(() => target.removeEventListener(name, update, true));
-            }
-            // <track> load does not bubble; capture also observes late track elements.
-            update();
-        }
         report(true);
+        if (states.has(video)) return;
+        // Bound observation to the transition; do not keep polling during a movie.
+        let remaining = 10;
+        const timer = setInterval(() => {
+            diagnose(video, 2);
+            if (--remaining === 0) clearInterval(timer);
+        }, 1000);
+        states.set(video, timer);
+        sessions.add(video);
     }
-    function restore(video) {
-        const state = states.get(video);
-        if (!state) return;
-        clearTimeout(state.pending);
-        for (const cleanup of state.cleanup) cleanup();
-        diagnose(video, 4);
-        if (state.bridge) { state.bridge.track.mode = 'disabled'; state.bridge.remove(); }
-        if (state.track?.mode === 'showing') state.track.mode = 'hidden';
+    function end(video) {
+        clearInterval(states.get(video));
         states.delete(video);
         sessions.delete(video);
+        diagnose(video, 3);
         report(false);
     }
-    function restoreAll() { for (const video of [...sessions]) restore(video); }
-    window.irisPrepareNativeCaptions = prepare;
-    window.irisRestoreNativeCaptions = restore;
-    for (const name of ['webkitEnterFullscreen', 'requestFullscreen']) {
-        const original = HTMLVideoElement.prototype[name];
-        if (typeof original !== 'function') continue;
-        HTMLVideoElement.prototype[name] = function(...args) {
-            prepare(this);
-            try {
-                const result = original.apply(this, args);
-                if (result?.catch) return result.catch(error => { restore(this); throw error; });
-                return result;
-            } catch (error) { restore(this); throw error; }
-        };
-    }
-    // Vidstack normally requests fullscreen on its wrapper (custom UI). In Iris,
-    // use the same video presentation path as the toolbar, retaining the live
-    // video/provider and the initiating user gesture. Other wrappers are untouched.
-    for (const name of ['requestFullscreen', 'webkitRequestFullscreen']) {
-        const original = Element.prototype[name];
-        if (typeof original !== 'function') continue;
-        Element.prototype[name] = function(...args) {
-            const videos = this.matches('media-player[data-media-player]') ? this.querySelectorAll('video') : [];
-            if (videos.length === 1 && typeof videos[0].webkitEnterFullscreen === 'function') {
-                try { videos[0].webkitEnterFullscreen(); return Promise.resolve(); }
-                catch (error) { return Promise.reject(error); }
-            }
-            return original.apply(this, args);
-        };
-    }
-    const setPresentation = HTMLVideoElement.prototype.webkitSetPresentationMode;
-    if (typeof setPresentation === 'function') {
-        HTMLVideoElement.prototype.webkitSetPresentationMode = function(mode) {
-            if (mode !== 'inline') prepare(this);
-            try { return setPresentation.call(this, mode); }
-            catch (error) { restore(this); throw error; }
-        };
-    }
-    document.addEventListener('webkitpresentationmodechanged', e => {
-        if (!(e.target instanceof HTMLVideoElement)) return;
-        if (e.target.webkitPresentationMode === 'inline') restore(e.target);
-        else begin(e.target);
-    }, true);
     document.addEventListener('webkitbeginfullscreen', e => {
         if (e.target instanceof HTMLVideoElement) begin(e.target);
     }, true);
     document.addEventListener('webkitendfullscreen', e => {
-        if (e.target instanceof HTMLVideoElement && !nativeActive(e.target)) restore(e.target);
+        if (e.target instanceof HTMLVideoElement && !nativeActive(e.target)) end(e.target);
+    }, true);
+    document.addEventListener('webkitpresentationmodechanged', e => {
+        if (!(e.target instanceof HTMLVideoElement)) return;
+        if (nativeActive(e.target)) begin(e.target); else end(e.target);
     }, true);
     document.addEventListener('fullscreenchange', () => {
         const element = document.fullscreenElement;
         if (element) {
             const videos = element instanceof HTMLVideoElement ? [element] : [...element.querySelectorAll('video')];
-            // A wrapper with multiple videos is ambiguous; do not select one arbitrarily.
-            if (videos.length === 1) begin(videos[0]);
-            else report(true);
+            if (videos.length === 1) begin(videos[0]); else report(true);
         } else {
-            for (const video of [...sessions]) if (!nativeActive(video)) restore(video);
-            if (!sessions.size) report(false);
+            for (const video of [...sessions]) if (!nativeActive(video)) end(video);
+            if (![...sessions].some(nativeActive)) report(false);
         }
     });
-    document.addEventListener('fullscreenerror', restoreAll, true);
-    window.addEventListener('pagehide', restoreAll);
+    window.addEventListener('pagehide', () => {
+        for (const video of [...sessions]) { clearInterval(states.get(video)); states.delete(video); }
+        sessions.clear();
+    });
+    document.addEventListener('playing', e => {
+        if (e.target instanceof HTMLVideoElement) diagnose(e.target, 0);
+    }, true);
 })();

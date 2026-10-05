@@ -1,5 +1,15 @@
 # Site checks
 
+## October 4 baseline restoration after another failed headset retest
+
+Max reports that `eb45b94` still shows no subtitles in the native mini player or Moon, even after choosing English/Auto. Website inline captions work. He recalls the Iris toolbar definitely retaining subtitles before the caption patches; the website button probably did too. The previous build's bridge is therefore a failed headset candidate, despite passing its synthetic track tests.
+
+Restored `enterNativeFullscreen()` byte-for-byte to commit `6e77e61`, before the first subtitle patch (`da76e64`). Removed **all** subtitle track mutations, cue rewriting, duplicate tracks, player-control changes and fullscreen/presentation API overrides. Website fullscreen requests again reach WebKit unchanged. Dark appearance, persistent tabs, browser sizing recovery and the separate AVPlayer handoff's safety checks remain.
+
+The caption script now only reads selection for the separate AVPlayer handoff and observes native/standard fullscreen events. Numeric diagnostic snapshots run for at most ten seconds per transition; they contain ready state, native track/showing/hidden/cue/active-cue counts and the custom-caption flag. They contain no URLs or subtitle text. `NSLog` makes the snapshots available in the attached device console; the previous OSLog-only diagnostics were absent from the captured console, so no successful native track transfer was proven on Max's headset.
+
+This is a controlled return to the user-reported working path, **not a claim that Moon is fixed**. Retest the toolbar first, then the website button, then Moon while collecting actual-device state. The obsolete mutation/bridge fixtures were replaced with a regression check that fullscreen API identities, website track modes, caption Off, cues, late tracks and controls remain untouched. All 70 current tests passed, including the live filter check; Simulator and signed Release builds passed with zero warnings. Strict Release signature verification passed. Installed on Max’s Vision Pro; the direct toolbar subtitle retest is pending.
+
 ## October 4 second subtitle investigation
 
 Max retested commit `42df4a8`: website fullscreen opened black video; Iris Watch opened playable native video without subtitles; Apple environments also lost subtitles. That build did **not** resolve the headset issue.

@@ -13,13 +13,9 @@ extension BrowserModel {
             _ = try await view.callAsyncJavaScript("""
                 const v = [...document.querySelectorAll('video')].find(v => v.dataset.irisVideo === id);
                 if (!v) throw new Error('Video is no longer on this page');
-                window.irisPrepareNativeCaptions?.(v);
                 if (typeof v.webkitEnterFullscreen === 'function') v.webkitEnterFullscreen();
                 else if (typeof v.requestFullscreen === 'function') await v.requestFullscreen();
-                else {
-                    window.irisRestoreNativeCaptions?.(v);
-                    throw new Error('No fullscreen API');
-                }
+                else throw new Error('No fullscreen API');
                 """, arguments: ["id": candidate.descriptor.id], in: candidate.frame, contentWorld: .page)
         } catch {
             guard videoPreparationID == preparationID, !Task.isCancelled else { return }
