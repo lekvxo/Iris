@@ -42,7 +42,7 @@ final class SettingsStore {
             let support = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
             // Browsing history and saved sites remain on this headset, without CloudKit.
-            container = try ModelContainer(for: SitePermission.self, SavedSite.self, HistoryEntry.self,
+            container = try ModelContainer(for: SitePermission.self, SavedSite.self, HistoryEntry.self, BrowserSessionRecord.self,
                                            configurations: configuration)
             history = HistoryStore(context: container.mainContext)
             history.prune(keeping: historyRetention)

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Observation
 import WebKit
 
@@ -106,11 +107,11 @@ final class BrowserTabs {
         return (try? JSONEncoder().encode(value)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
     }
 
-    func restore(_ text: String) {
+    @discardableResult func restore(_ text: String) -> Bool {
         guard let data = text.data(using: .utf8), let value = try? JSONDecoder().decode(Snapshot.self, from: data),
               !value.tabs.isEmpty, value.tabs.count <= 100,
               Set(value.tabs.map(\.id)).count == value.tabs.count,
-              value.tabs.allSatisfy({ ["http", "https"].contains($0.url.scheme?.lowercased() ?? "") && $0.url.host != nil }) else { return }
+              value.tabs.allSatisfy({ ["http", "https"].contains($0.url.scheme?.lowercased() ?? "") && $0.url.host != nil }) else { return false }
         tabs = value.tabs.map { BrowserTab(url: $0.url, id: $0.id, pinned: $0.pinned) }
         selectedID = tabs.contains { $0.id == value.selected } ? value.selected : tabs[0].id
         for tab in tabs {
@@ -118,5 +119,62 @@ final class BrowserTabs {
             tab.model.isBackgrounded = tab.id != selectedID
             tab.hasBeenSelected = tab.id == selectedID
         }
+        return true
+    }
+}
+
+
+// Each window checkpoints its own links. Recovery copies links into fresh BrowserModels;
+// WebKit history, page state and playback are deliberately not serialized.
+@Model final class BrowserSessionRecord {
+    @Attribute(.unique) var windowID: UUID
+    var snapshot: String
+    var updatedAt: Date
+
+    init(windowID: UUID, snapshot: String, updatedAt: Date = Date()) {
+        self.windowID = windowID
+        self.snapshot = snapshot
+        self.updatedAt = updatedAt
+    }
+}
+
+@MainActor final class BrowserSessionStore {
+    private let context: ModelContext
+    private(set) var didRestore = false
+
+    init(context: ModelContext) { self.context = context }
+
+    func save(_ snapshot: String, windowID: UUID) throws {
+        let records = try context.fetch(FetchDescriptor<BrowserSessionRecord>())
+        if let record = records.first(where: { $0.windowID == windowID }) {
+            record.snapshot = snapshot
+            record.updatedAt = Date()
+        } else {
+            context.insert(BrowserSessionRecord(windowID: windowID, snapshot: snapshot))
+        }
+        try context.save()
+    }
+
+    // Scene state identifies a restored scene even when its original URL request remains.
+    // Fresh explicit URL/popup requests have no scene state and always keep their new link.
+    func restore(_ tabs: BrowserTabs, sceneSnapshot: String = "", windowID: UUID? = nil,
+                 explicitRequest: Bool = false, legacyURL: String? = nil) throws -> UUID {
+        didRestore = tabs.restore(sceneSnapshot)
+        let identity = windowID ?? UUID()
+        if didRestore { return identity }
+        if explicitRequest && windowID == nil { return identity }
+        let records = try context.fetch(FetchDescriptor<BrowserSessionRecord>(
+            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]))
+        for record in records where windowID == nil || record.windowID == windowID {
+            if tabs.restore(record.snapshot) {
+                didRestore = true
+                break
+            }
+        }
+        if !didRestore, !explicitRequest, let legacyURL, let url = URL(string: legacyURL),
+           ["http", "https"].contains(url.scheme?.lowercased() ?? ""), url.host != nil {
+            didRestore = tabs.restore(BrowserTabs(url: url).snapshot)
+        }
+        return identity
     }
 }

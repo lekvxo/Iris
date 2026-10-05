@@ -14,6 +14,7 @@ struct BrowserWindow: View {
     @Query private var savedSites: [SavedSite]
     @SceneStorage("lastURL") private var lastURL: String?
     @SceneStorage("browserTabs") private var restoredTabs = ""
+    @SceneStorage("browserSessionID") private var restoredSessionID = ""
     @State private var restorationReady = false
 
     init(initialURL: URL?, popupID: UUID? = nil) {
@@ -187,26 +188,46 @@ struct BrowserWindow: View {
             }
             .onAppear {
                 if !restorationReady {
-                    if initialURL == nil, !restoredTabs.isEmpty { tabs.restore(restoredTabs) }
-                    else if initialURL == nil, let lastURL, let url = URL(string: lastURL) { tabs = BrowserTabs(url: url) }
+                    let store = BrowserSessionStore(context: settings.container.mainContext)
+                    do {
+                        windowID = try store.restore(tabs, sceneSnapshot: restoredTabs,
+                                                     windowID: UUID(uuidString: restoredSessionID),
+                                                     explicitRequest: initialURL != nil, legacyURL: lastURL)
+                    } catch { settings.persistenceError = error.localizedDescription }
+                    restoredSessionID = windowID.uuidString
                     restorationReady = true
+                    checkpoint()
                 }
                 updateActivity()
                 for tab in tabs.tabs { tab.model.allowedSites = settings.navigationSites }
             }
-            .onChange(of: tabs.snapshot) { _, value in restoredTabs = value }
+            .onChange(of: tabs.snapshot) { _, _ in checkpoint() }
             .onChange(of: tabs.selectedID) { _, _ in updateActivity() }
             .onChange(of: tabs.tabs.count) { _, _ in
                 for tab in tabs.tabs { tab.model.allowedSites = settings.navigationSites }
                 updateActivity()
             }
-            .onChange(of: scenePhase) { _, _ in updateActivity() }
-            .onDisappear { settings.energy.setForeground(false, window: windowID) }
+            .onChange(of: scenePhase) { _, _ in
+                checkpoint()
+                updateActivity()
+            }
+            .onDisappear {
+                checkpoint()
+                settings.energy.setForeground(false, window: windowID)
+            }
             .onChange(of: settings.navigationSites) { _, sites in
                 for tab in tabs.tabs { tab.model.allowedSites = sites }
             }
             .sheet(isPresented: $showingSettings) { SettingsView() }
 
+    }
+
+    private func checkpoint() {
+        guard restorationReady else { return }
+        restoredTabs = tabs.snapshot
+        do {
+            try BrowserSessionStore(context: settings.container.mainContext).save(restoredTabs, windowID: windowID)
+        } catch { settings.persistenceError = error.localizedDescription }
     }
 
     private func updateActivity() {
