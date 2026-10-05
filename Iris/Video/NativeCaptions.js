@@ -12,6 +12,12 @@
         const player = video.closest('media-player');
         return player?.hasAttribute('data-media-player') ? player : null;
     }
+    function eventPlayer(event) {
+        // Maverick replaces event.target with a controller, not an Element.
+        // The native propagation path retains the actual dispatching DOM node.
+        const element = event.composedPath().find(node => node instanceof Element);
+        return element?.closest('media-player[data-media-player]') || null;
+    }
     function preference(video) {
         const player = customPlayer(video);
         if (player) {
@@ -49,8 +55,8 @@
     // The React DOM does not expose player.textTracks. These public Vidstack
     // events provide the selected track itself, including its already-loaded cues.
     document.addEventListener('text-track-change', event => {
-        const player = event.target;
-        if (!(player instanceof Element) || !player.matches('media-player[data-media-player]')) return;
+        const player = eventPlayer(event);
+        if (!player) return;
         const track = event.detail;
         if (track !== null && (!track || !['subtitles', 'captions'].includes(track.kind) ||
             typeof track.addEventListener !== 'function' || !Array.isArray(track.cues))) return;
@@ -63,6 +69,7 @@
     function clearBridge(video) {
         const state = bridges.get(video);
         if (!state) return;
+        clearTimeout(state.activation);
         for (const name of ['load', 'add-cue', 'remove-cue']) state.source.removeEventListener(name, state.update);
         state.native.mode = 'hidden';
         for (const cue of [...(state.native.cues || [])]) state.native.removeCue(cue);
@@ -121,8 +128,7 @@
     // Vidstack request; leave browser prototypes and other sites untouched.
     document.addEventListener('media-enter-fullscreen-request', event => {
         if (location.hostname !== 'strm.cx' || !navigator.userActivation?.isActive || event.defaultPrevented) return;
-        const target = event.target;
-        const player = target instanceof Element ? target.closest('media-player[data-media-player]') : null;
+        const player = eventPlayer(event);
         const videos = player?.querySelectorAll('video');
         if (videos?.length !== 1) return;
         const video = videos[0];
@@ -154,6 +160,19 @@
         pending.delete(video);
         sessions.add(video);
         transfer(video);
+        const bridge = bridges.get(video);
+        if (bridge && !bridge.entered) {
+            bridge.entered = true;
+            // Native fullscreen resets the initial track selection. Apply the
+            // website's explicit selection once after transition handlers finish.
+            // Later Native Off choices must remain under the user's control.
+            bridge.activation = setTimeout(() => {
+                if (bridges.get(video) !== bridge || !sessions.has(video) ||
+                    bridge.source.mode !== 'showing' || !bridge.copies.size) return;
+                bridge.native.mode = 'showing';
+                diagnose(video, 4);
+            }, 0);
+        }
         diagnose(video, 1);
         report(true);
         if (states.has(video)) return;

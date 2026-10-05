@@ -84,7 +84,13 @@ import AVFoundation
                 first.mode = second.mode = 'disabled';
                 const en = Object.assign(new EventTarget(), {kind:'subtitles', label:'English', language:'en', mode:'showing', cues:[]});
                 const ja = Object.assign(new EventTarget(), {kind:'subtitles', label:'Japanese', language:'ja', mode:'showing', cues:[new VTTCue(0,100,'Japanese fixture')]});
-                const selected = track => p.dispatchEvent(new CustomEvent('text-track-change', {detail:track}));
+                // Vidstack/Maverick replaces Event.target with its controller instance.
+                // composedPath() still contains the actual DOM dispatch element.
+                const selected = track => {
+                    const event = new CustomEvent('text-track-change', {detail:track});
+                    Object.defineProperty(event, 'target', {get: () => ({el:p})});
+                    return p.dispatchEvent(event);
+                };
                 selected(en);
                 const inline = v.textTracks.length === 2 && irisNativeCaptionPreference(v).language === 'en';
                 irisPrepareNativeCaptions(v); v.dispatchEvent(new Event('webkitbeginfullscreen'));
@@ -138,7 +144,11 @@ import AVFoundation
             p.addEventListener('media-enter-fullscreen-request', () => websiteCalls++);
             Object.defineProperty(v, 'readyState', {configurable:true, value:4});
             v.webkitEnterFullscreen = () => { calls++; };
-            const request = () => f.dispatchEvent(new CustomEvent('media-enter-fullscreen-request', {bubbles:true, cancelable:true}));
+            const request = () => {
+                const event = new CustomEvent('media-enter-fullscreen-request', {bubbles:true, cancelable:true});
+                Object.defineProperty(event, 'target', {get: () => ({el:f})});
+                return f.dispatchEvent(event);
+            };
             const activation = navigator.userActivation.isActive;
             request();
             const direct = calls === 1 && websiteCalls === 0;
@@ -179,6 +189,45 @@ import AVFoundation
             return prepared && v.textTracks[0].mode === 'disabled';
             """, arguments: [:], in: nil, contentWorld: .page)
         XCTAssertEqual(result as? Bool, true)
+    }
+
+    func testFullscreenSelectionResetRestoresOnceAndPreservesNativeOff() async throws {
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.addUserScript(WKUserScript(source: ScriptSource.read("NativeCaptions"), injectionTime: .atDocumentStart, forMainFrameOnly: false))
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.loadHTMLString("<media-player id='p' data-media-player><video id='v'></video></media-player>", baseURL: URL(string: "https://caption.example"))
+        for _ in 0..<450 {
+            if let value = try? await view.evaluateJavaScript("!!document.getElementById('v') && typeof irisPrepareNativeCaptions === 'function'"), value as? Bool == true { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let result = try await view.callAsyncJavaScript("""
+            const p = document.getElementById('p'), v = document.getElementById('v');
+            const track = Object.assign(new EventTarget(), {kind:'subtitles', label:'English', language:'en', mode:'showing', cues:[new VTTCue(0,100,'Fixture')]});
+            p.dispatchEvent(new CustomEvent('text-track-change', {detail:track}));
+            irisPrepareNativeCaptions(v);
+            const native = v.textTracks[0], prepared = native.mode === 'showing';
+            // Reproduce the actual headset: transition disables the prepared track.
+            v.dispatchEvent(new Event('webkitbeginfullscreen'));
+            native.mode = 'disabled';
+            await new Promise(resolve => setTimeout(resolve, 25));
+            const restored = native.mode === 'showing' && native.cues.length === 1;
+            // A later native Off choice and duplicate transition event stay Off.
+            native.mode = 'disabled';
+            v.dispatchEvent(new Event('webkitbeginfullscreen'));
+            track.dispatchEvent(new Event('load'));
+            await new Promise(resolve => setTimeout(resolve, 25));
+            const off = native.mode === 'disabled';
+            irisRestoreNativeCaptions(v);
+            // Exiting immediately must cancel pending activation.
+            irisPrepareNativeCaptions(v);
+            v.dispatchEvent(new Event('webkitbeginfullscreen'));
+            irisRestoreNativeCaptions(v);
+            await new Promise(resolve => setTimeout(resolve, 25));
+            return {prepared, restored, off, cancelled: native.mode === 'disabled'};
+            """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
+        for key in ["prepared", "restored", "off", "cancelled"] {
+            XCTAssertEqual(result?[key] as? Bool, true, key)
+        }
     }
 
     func testNativeCaptionLanguageRequiresAMatch() {
