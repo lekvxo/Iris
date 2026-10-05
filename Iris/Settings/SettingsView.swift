@@ -86,6 +86,10 @@ struct SettingsView: View {
                     Text("Sign-in hosts allowed: accounts.google.com, appleid.apple.com, login.microsoftonline.com, github.com.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                Section("About") {
+                    LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")
+                    LabeledContent("Build", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—")
+                }
                 if let error = settings.persistenceError { Text(error).foregroundStyle(.red) }
             }
             .navigationTitle("Iris Settings")
