@@ -110,66 +110,18 @@ struct BrowserWindow: View {
                 if !model.isWebFullscreen {
                 VStack {
                 tabStrip
-                HStack(spacing: 8) {
-                    tool("Back", "chevron.left", disabled: !model.canGoBack) { model.webView?.goBack() }
-                    tool("Forward", "chevron.right", disabled: !model.canGoForward) { model.webView?.goForward() }
-                    tool(model.isLoading ? "Stop" : "Reload", model.isLoading ? "xmark" : "arrow.clockwise") {
-                        if model.isLoading {
-                            (model.webView?.navigationDelegate as? WebView.Coordinator)?.policyTask?.cancel()
-                            model.webView?.stopLoading()
-                        } else { Task { await model.reloadPage(settings: settings) } }
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) {
+                        navigationAndAddress.frame(minWidth: 620)
+                        pageActions.fixedSize(horizontal: true, vertical: false)
                     }
-                    AddressField(text: model.url?.absoluteString ?? "") { model.load(InputRouter.destination(for: $0)) }
-                        .frame(minWidth: 180, maxWidth: .infinity)
-                        .frame(height: 44)
-                        .layoutPriority(1)
-                        .disabled(model.isInitializing)
-                    Menu {
-                        Button("Save offline copy", systemImage: "arrow.down.doc") {
-                            Task { await model.saveOffline(existing: currentSavedSite, settings: settings) }
-                        }.disabled(model.isSavingOffline)
-                    } label: {
-                        Label(currentSavedSite == nil ? "Save site" : "Remove saved site",
-                              systemImage: currentSavedSite == nil ? "star" : "star.fill")
-                            .labelStyle(.iconOnly)
-                    } primaryAction: { toggleSave() }
-                    .disabled(model.url?.host == nil).hoverEffect()
-                    .confirmationDialog("Remove saved site?", isPresented: Binding(get: { confirmingRemoval != nil },
-                                                                                   set: { if !$0 { confirmingRemoval = nil } }),
-                                        presenting: confirmingRemoval) { site in
-                        Button("Remove", role: .destructive) {
-                            Task { model.saveError = await settings.removeSaved(site) }
-                        }
-                    } message: { site in
-                        Text(site.archiveFileName == nil ? site.title : "\(site.title) and its offline copy will be deleted.")
-                    }
-                    tool("Saved sites", "book", disabled: model.isInitializing) { showingSaved = true }
-                        .popover(isPresented: $showingSaved) {
-                            SavedListView { site in
-                                if let url = URL(string: site.url) {
-                                    site.lastOpened = Date()
-                                    settings.save()
-                                    model.load(url)
-                                    showingSaved = false
-                                }
-                            } openOffline: { site in
-                                showingSaved = false
-                                Task { await model.openArchive(site, settings: settings) }
-                            } openHistory: { url in
-                                model.load(url)
-                                showingSaved = false
-                            }
-                        }
-                    tool("Watch in Player", "play.rectangle",
-                         disabled: model.isPreparingVideo || model.watchReason(native: settings.nativeVideo) != nil) {
-                        let native = settings.nativeVideo
-                        model.videoTask = Task { [weak model = model] in
-                            if native { await model?.enterNativeFullscreen() }
-                            else { await model?.prepareHandoff() }
+                    VStack(spacing: 8) {
+                        navigationAndAddress
+                        HStack {
+                            Spacer(minLength: 0)
+                            pageActions
                         }
                     }
-                    BlockingButton(model: model)
-                    tool("Settings", "gear") { showingSettings = true }
                 }
                 }
                 .padding(12)
@@ -221,6 +173,77 @@ struct BrowserWindow: View {
             .sheet(isPresented: $showingSettings) { SettingsView() }
 
     }
+
+    private var navigationAndAddress: some View {
+        HStack(spacing: 8) {
+            tool("Back", "chevron.left", disabled: !model.canGoBack) { model.webView?.goBack() }
+            tool("Forward", "chevron.right", disabled: !model.canGoForward) { model.webView?.goForward() }
+            tool(model.isLoading ? "Stop" : "Reload", model.isLoading ? "xmark" : "arrow.clockwise") {
+                if model.isLoading {
+                    (model.webView?.navigationDelegate as? WebView.Coordinator)?.policyTask?.cancel()
+                    model.webView?.stopLoading()
+                } else { Task { await model.reloadPage(settings: settings) } }
+            }
+            AddressField(text: model.url?.absoluteString ?? "") { model.load(InputRouter.destination(for: $0)) }
+                .frame(minWidth: 180, maxWidth: .infinity)
+                .frame(height: 44)
+                .layoutPriority(1)
+                .disabled(model.isInitializing)
+                .clipped()
+        }
+    }
+
+    private var pageActions: some View {
+        HStack(spacing: 8) {
+            Menu {
+                Button("Save offline copy", systemImage: "arrow.down.doc") {
+                    Task { await model.saveOffline(existing: currentSavedSite, settings: settings) }
+                }.disabled(model.isSavingOffline)
+            } label: {
+                Label(currentSavedSite == nil ? "Save site" : "Remove saved site",
+                      systemImage: currentSavedSite == nil ? "star" : "star.fill")
+                    .labelStyle(.iconOnly)
+            } primaryAction: { toggleSave() }
+            .disabled(model.url?.host == nil).hoverEffect()
+            .confirmationDialog("Remove saved site?", isPresented: Binding(get: { confirmingRemoval != nil },
+                                                                           set: { if !$0 { confirmingRemoval = nil } }),
+                                presenting: confirmingRemoval) { site in
+                Button("Remove", role: .destructive) {
+                    Task { model.saveError = await settings.removeSaved(site) }
+                }
+            } message: { site in
+                Text(site.archiveFileName == nil ? site.title : "\(site.title) and its offline copy will be deleted.")
+            }
+            tool("Saved sites", "book", disabled: model.isInitializing) { showingSaved = true }
+                .popover(isPresented: $showingSaved) {
+                    SavedListView { site in
+                        if let url = URL(string: site.url) {
+                            site.lastOpened = Date()
+                            settings.save()
+                            model.load(url)
+                            showingSaved = false
+                        }
+                    } openOffline: { site in
+                        showingSaved = false
+                        Task { await model.openArchive(site, settings: settings) }
+                    } openHistory: { url in
+                        model.load(url)
+                        showingSaved = false
+                    }
+                }
+            tool("Watch in Player", "play.rectangle",
+                 disabled: model.isPreparingVideo || model.watchReason(native: settings.nativeVideo) != nil) {
+                let native = settings.nativeVideo
+                model.videoTask = Task { [weak model = model] in
+                    if native { await model?.enterNativeFullscreen() }
+                    else { await model?.prepareHandoff() }
+                }
+            }
+            BlockingButton(model: model)
+            tool("Settings", "gear") { showingSettings = true }
+        }
+    }
+
 
     private func checkpoint() {
         guard restorationReady else { return }

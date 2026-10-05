@@ -1,6 +1,12 @@
 # Iris headset acceptance — PLAN.md §7
 
-Build 2 failed Max's actual mini-player/Moon retest on October 5: copied captions were switched off again after entry. Build 3 uses the website player's public native-caption renderer and its existing selected track. Iris 1.0 build 3 is installed and launched on Max’s headset; the independent device registry confirms bundle version 3. Numeric diagnostics: `/private/tmp/iris-build-3-console.log`. Visual acceptance is pending.
+October 5 current installation: **Iris 1.0 build 4**. The independent device registry confirms build 4. This update constrains long addresses to the text field and moves page actions onto a second row when the toolbar is narrow. Playback/caption code is unchanged from build 3. All 76 tests passed; Simulator and signed Release builds have zero compiler warnings. Headset visual acceptance is pending.
+
+- [ ] Settings → About identifies Build 4. At the smallest window size, a long episode URL stays inside its field; Save, Saved, Watch, Shield and Settings remain separate and usable. Expand again: actions return to one row. Check address editing/submission, tabs and popovers by gaze/pinch.
+- [ ] Reload the same Miruro episode and choose a server labeled `h-sub`, such as `kiwi · dl · h-sub` when available. Verify readable subtitles with Iris's toolbar fullscreen, website fullscreen and Moon. A desktop check showed visible subtitles with zero native text tracks and an empty webpage caption element, consistent with burned-in text. Headset survival is still unverified; Apple English/Off controls cannot alter burned-in text.
+- [ ] Compare an `s-sub` server separately with English visible inline. Record captions/video/black screen for each fullscreen button and Moon. Max's Safari screenshots show website-UI fullscreen captions present and native immersive captions absent; this does not establish build 3's native-renderer result. Do not mark soft subtitles fixed without a headset pass.
+
+Build 2 failed Max's actual mini-player/Moon retest on October 5: copied captions were switched off again after entry. Build 3 uses the website player's public native-caption renderer and its existing selected track. Iris 1.0 build 3 was installed and launched on Max’s headset before build 4; the independent device registry confirmed bundle version 3. Numeric diagnostics: `/private/tmp/iris-build-3-console.log`. Visual acceptance is pending.
 
 - [ ] Settings → About identifies Build 3. Reload the episode once after updating.
 - [ ] With English captions visible inline, test Iris's toolbar fullscreen button and the website's fullscreen button. Both must show video/audio and readable captions, with no black screen.

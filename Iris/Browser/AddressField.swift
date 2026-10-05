@@ -16,8 +16,15 @@ struct AddressField: UIViewRepresentable {
         field.autocapitalizationType = .none
         field.returnKeyType = .go
         field.clearButtonMode = .whileEditing
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         field.delegate = context.coordinator
         return field
+    }
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextField, context: Context) -> CGSize? {
+        // A long address must scroll inside the field, rather than determine the
+        // toolbar's width or extend under adjacent controls.
+        CGSize(width: proposal.width ?? 180, height: proposal.height ?? 44)
     }
     func updateUIView(_ field: UITextField, context: Context) {
         context.coordinator.parent = self
