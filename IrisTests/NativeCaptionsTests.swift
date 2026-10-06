@@ -203,7 +203,7 @@ import AVFoundation
         XCTAssertEqual(result as? Bool, true)
     }
 
-    func testSharedWebViewFactoryEnablesElementFullscreenInlinePlaybackAndInspection() throws {
+    func testSharedWebViewFactoryEnablesFullscreenAndDefersCaptionProcessing() async throws {
         let settings = SettingsStore(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
         let coordinator = WebView.Coordinator(model: BrowserModel())
         let configuration = WKWebViewConfiguration()
@@ -213,7 +213,29 @@ import AVFoundation
         defer { WebView.dismantleUIView(view, coordinator: coordinator) }
         XCTAssertTrue(view.configuration.allowsInlineMediaPlayback)
         XCTAssertTrue(view.configuration.preferences.isElementFullscreenEnabled)
+        #if DEBUG
         XCTAssertTrue(view.isInspectable)
+        #else
+        XCTAssertFalse(view.isInspectable)
+        #endif
+        view.loadHTMLString("<div id='player'><video id='video'></video><div>Website captions</div></div>", baseURL: URL(string: "https://strm.cx"))
+        for _ in 0..<150 {
+            if let value = try? await view.evaluateJavaScript("!!document.getElementById('video')"), value as? Bool == true { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let disabled = try await view.evaluateJavaScript("""
+            (() => {
+                const video = document.getElementById('video');
+                const absent = ['irisPrepareNativeCaptions', 'irisRestoreNativeCaptions', 'irisNativeCaptionPreference']
+                    .every(name => typeof window[name] === 'undefined');
+                const track = video.addTextTrack('subtitles', 'English', 'en'); track.mode = 'disabled';
+                video.dispatchEvent(new Event('webkitbeginfullscreen'));
+                const unchanged = video.textTracks.length === 1 && track.mode === 'disabled' && !video.controls;
+                video.dispatchEvent(new Event('webkitendfullscreen'));
+                return absent && unchanged;
+            })()
+            """)
+        XCTAssertEqual(disabled as? Bool, true)
     }
 
     func testUnenteredFullscreenCleansUpCopiedCaptions() async throws {

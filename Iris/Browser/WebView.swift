@@ -50,11 +50,38 @@ struct WebView: UIViewRepresentable {
         controller.add(coordinator, name: "irisYouTubeScriptlets")
         controller.addUserScript(WKUserScript(
             source: ScriptSource.read("VideoProbe"), injectionTime: .atDocumentEnd, forMainFrameOnly: false))
-        controller.addUserScript(WKUserScript(
-            source: ScriptSource.read("NativeCaptions"), injectionTime: .atDocumentStart, forMainFrameOnly: false))
+        // Caption processing is deferred. Observe presentation only so Iris can
+        // hide its chrome and restore the browser on exit without touching captions.
+        controller.addUserScript(WKUserScript(source: """
+            (() => {
+                const videos = new Set();
+                const report = () => window.webkit?.messageHandlers.irisFullscreen?.postMessage({
+                    fullscreen: !!document.fullscreenElement || videos.size > 0
+                });
+                document.addEventListener('fullscreenchange', report);
+                document.addEventListener('webkitbeginfullscreen', event => {
+                    if (event.target instanceof HTMLVideoElement) { videos.add(event.target); report(); }
+                }, true);
+                document.addEventListener('webkitendfullscreen', event => {
+                    if (event.target instanceof HTMLVideoElement) { videos.delete(event.target); report(); }
+                }, true);
+                document.addEventListener('webkitpresentationmodechanged', event => {
+                    const video = event.target;
+                    if (!(video instanceof HTMLVideoElement)) return;
+                    if (video.webkitDisplayingFullscreen || ['fullscreen', 'picture-in-picture'].includes(video.webkitPresentationMode)) videos.add(video);
+                    else videos.delete(video);
+                    report();
+                }, true);
+                window.addEventListener('pagehide', () => { videos.clear(); report(); });
+            })();
+            """, injectionTime: .atDocumentStart, forMainFrameOnly: false))
         configuration.userContentController = controller
         let view = WKWebView(frame: .zero, configuration: configuration)
+        #if DEBUG
         view.isInspectable = true
+        #else
+        view.isInspectable = false
+        #endif
         view.overrideUserInterfaceStyle = .dark
         // Google's bare WebKit fallback is the legacy homepage. Advertise the desktop Safari version.
         view.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15"
