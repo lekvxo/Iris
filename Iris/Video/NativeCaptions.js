@@ -220,26 +220,12 @@
         }, 5000));
     };
     window.irisRestoreNativeCaptions = video => end(video);
-    // This embed's wrapper-fullscreen path black-screens on the headset, while
-    // direct video fullscreen works. Handle only its public, user-initiated
-    // Vidstack request; leave browser prototypes and other sites untouched.
-    document.addEventListener('media-enter-fullscreen-request', event => {
-        if (location.hostname !== 'strm.cx' || !navigator.userActivation?.isActive || event.defaultPrevented) return;
-        const player = eventPlayer(event);
-        const videos = player?.querySelectorAll('video');
-        if (videos?.length !== 1) return;
-        const video = videos[0];
-        if (video.readyState < 1 || nativeActive(video) || document.fullscreenElement ||
-            typeof video.webkitEnterFullscreen !== 'function') return;
-        try {
-            window.irisPrepareNativeCaptions(video);
-            video.webkitEnterFullscreen();
-            event.preventDefault();
-            event.stopImmediatePropagation();
-        } catch {
-            end(video); // Let the website handle the original request if WebKit rejects it.
-        }
-    }, true);
+    // Website fullscreen requests belong to the website's whole player, including
+    // its HTML/canvas captions. Do not redirect them to video-only presentation.
+    function containerFullscreen(video) {
+        const element = document.fullscreenElement;
+        return element && !(element instanceof HTMLVideoElement) && element.contains(video);
+    }
     // Observe native presentation without overriding or redirecting fullscreen APIs.
     function diagnose(video, event) {
         const tracks = [...video.textTracks];
@@ -255,6 +241,7 @@
             selected: selections.get(customPlayer(video))?.cues?.length ?? -1});
     }
     function begin(video) {
+        if (containerFullscreen(video)) { report(true); return; }
         clearTimeout(pending.get(video));
         pending.delete(video);
         sessions.add(video);
@@ -305,7 +292,7 @@
         clearInterval(states.get(video));
         states.delete(video);
         diagnose(video, 3);
-        report(false);
+        report(!!document.fullscreenElement || [...sessions].some(nativeActive));
     }
     document.addEventListener('webkitbeginfullscreen', e => {
         if (e.target instanceof HTMLVideoElement) begin(e.target);
@@ -320,8 +307,8 @@
     document.addEventListener('fullscreenchange', () => {
         const element = document.fullscreenElement;
         if (element) {
-            const videos = element instanceof HTMLVideoElement ? [element] : [...element.querySelectorAll('video')];
-            if (videos.length === 1) begin(videos[0]); else report(true);
+            if (element instanceof HTMLVideoElement) begin(element);
+            else report(true); // Keep the site's controls and subtitle layer unchanged.
         } else {
             for (const video of [...sessions]) if (!nativeActive(video)) end(video);
             if (![...sessions].some(nativeActive)) report(false);

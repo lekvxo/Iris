@@ -1,5 +1,15 @@
 # Site checks
 
+## October 5 build 5: user-directed element fullscreen (Fix 1)
+
+The two configuration flags were already enabled on normal tabs. They now live in the shared webview factory so every Iris webview, including WebKit-created tabs, has `allowsInlineMediaPlayback = true` and `preferences.isElementFullscreenEnabled = true` before construction. Each view also sets `isInspectable = true` for Safari debugging.
+
+Removed the strm.cx `media-enter-fullscreen-request` interception that redirected the website's player-container request into video-only native fullscreen. Website requests now reach their original player handler. Container `fullscreenchange` events update Iris's fullscreen UI state without preparing native caption tracks or changing the website player's controls. A guard also prevents native begin events from doing that preparation while a containing player element is fullscreen. The site's video, controls and HTML/canvas caption layer can remain together. Actual headset rendering is pending, not certified by fixture events. Use the website's fullscreen button for Fix 1 testing.
+
+All **78 tests** passed with zero failures. Regressions check that the website request propagates without an Iris native-video call, that a selected website caption renderer/track remains untouched in container fullscreen, and that the actual shared WKWebView factory enables all three requested settings. Simulator and signed Release builds have zero compiler warnings; strict signature verification passed. Result: `build/Logs/Test/Test-Iris-2026.10.05_21-25-43--0700.xcresult`; logs: `/tmp/iris-element-fullscreen-build.log`, `/tmp/iris-element-fullscreen-test.log`, `/private/tmp/iris-build-5-release.log`. Source and packaged NativeCaptions.js both have SHA-256 `8f82dccfb484b06bf02100c5029982032265a6d49e3d2fb8b401a01c86ee152b`.
+
+The entire WebView.Coordinator implementation is byte-for-byte unchanged, including popup and redirect decisions. Iris/Blocking, popup/gesture scripts and VideoHandoff.swift are unchanged. Fix 2 is explicitly deferred until Max confirms Fix 1: no new text/timing message bridge, native caption overlay or Cinema/Deka implementation was added. Installation succeeded at `5C2B3223-D470-4B61-B9CD-5788E7899A2F/Iris.app`; packaged CFBundleVersion is 5. Headset visual acceptance remains pending in HEADSET_CHECKS.md.
+
 ## October 5 build 4: compact toolbar and Safari comparison
 
 The address UITextField's intrinsic width could grow with a long URL and overlap adjacent actions. It now accepts SwiftUI's proposed width, scrolls its text internally, and is clipped to its reserved space. A `ViewThatFits` toolbar keeps navigation/address above page actions in narrow windows and uses one row when enough room is available. Action handlers are unchanged. A real UIKit/SwiftUI layout regression mounts the actual AddressField with a long URL at 600, 900 and 1100 points and verifies its bounds stay between neighboring controls while preserving the full text.

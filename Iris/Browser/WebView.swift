@@ -19,8 +19,6 @@ struct WebView: UIViewRepresentable {
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.preferredContentMode = .desktop
         configuration.websiteDataStore = .default()
-        configuration.allowsInlineMediaPlayback = true
-        configuration.preferences.isElementFullscreenEnabled = true
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         let view = Self.makeWebView(configuration, coordinator: context.coordinator, settings: settings)
         context.coordinator.initialLoad = Task { [weak view, weak model] in
@@ -34,6 +32,9 @@ struct WebView: UIViewRepresentable {
     }
 
     static func makeWebView(_ configuration: WKWebViewConfiguration, coordinator: Coordinator, settings: SettingsStore) -> WKWebView {
+        // Apply to ordinary tabs and WebKit-created tabs before constructing the view.
+        configuration.allowsInlineMediaPlayback = true
+        configuration.preferences.isElementFullscreenEnabled = true
         // Each window gets its own controller so script messages reach its own coordinator.
         // A popup's configuration arrives holding its opener's controller, so it is always replaced.
         let controller = WKUserContentController()
@@ -53,6 +54,7 @@ struct WebView: UIViewRepresentable {
             source: ScriptSource.read("NativeCaptions"), injectionTime: .atDocumentStart, forMainFrameOnly: false))
         configuration.userContentController = controller
         let view = WKWebView(frame: .zero, configuration: configuration)
+        view.isInspectable = true
         view.overrideUserInterfaceStyle = .dark
         // Google's bare WebKit fallback is the legacy homepage. Advertise the desktop Safari version.
         view.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Safari/605.1.15"

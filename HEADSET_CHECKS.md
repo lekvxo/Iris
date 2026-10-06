@@ -1,6 +1,14 @@
 # Iris headset acceptance — PLAN.md §7
 
-October 5 current installation: **Iris 1.0 build 4**. The independent device registry confirms build 4. This update constrains long addresses to the text field and moves page actions onto a second row when the toolbar is narrow. Playback/caption code is unchanged from build 3. All 76 tests passed; Simulator and signed Release builds have zero compiler warnings. Headset visual acceptance is pending.
+October 5 Fix 1 candidate: **Iris 1.0 build 5 is installed on Max's headset**. All webviews enable element fullscreen, inline playback and inspection. Iris no longer intercepts the website's fullscreen request to open a video-only native player. Container fullscreen leaves the website's controls, caption layer and track selection untouched. All 78 tests and warning-free Simulator/signed Release builds pass. Fix 2 (native caption overlay/cinema) is deferred until Max confirms Fix 1. Headset acceptance is pending.
+
+- [ ] Settings → About identifies Build 5. Reload the same anime episode so the new script is installed in its embed.
+- [ ] With subtitles visible inline on an `s-sub` server, use the **website's own fullscreen button**. Its player controls and subtitles should remain visible, with working video/audio and no black screen.
+- [ ] Exit and re-enter website fullscreen; seek, switch caption language, turn captions Off/on and change episodes. Inline playback and captions should recover on exit.
+- [ ] Enter Moon from that presentation and record whether captions remain visible or whether visionOS switches to a video-only presentation. The native caption overlay is not implemented by Fix 1.
+- [ ] Safari's Develop menu can inspect Iris's webview once headset Web Inspector/connection requirements are enabled. Confirm `document.fullscreenElement` is the player container containing both video and caption layer in the embed.
+
+Previous installation: **Iris 1.0 build 4**. The independent device registry confirmed build 4. This update constrains long addresses to the text field and moves page actions onto a second row when the toolbar is narrow. Playback/caption code was unchanged from build 3. All 76 tests passed; Simulator and signed Release builds had zero compiler warnings. Headset visual acceptance is pending.
 
 - [ ] Settings → About identifies Build 4. At the smallest window size, a long episode URL stays inside its field; Save, Saved, Watch, Shield and Settings remain separate and usable. Expand again: actions return to one row. Check address editing/submission, tabs and popovers by gaze/pinch.
 - [ ] Reload the same Miruro episode and choose a server labeled `h-sub`, such as `kiwi · dl · h-sub` when available. Verify readable subtitles with Iris's toolbar fullscreen, website fullscreen and Moon. A desktop check showed visible subtitles with zero native text tracks and an empty webpage caption element, consistent with burned-in text. Headset survival is still unverified; Apple English/Off controls cannot alter burned-in text.

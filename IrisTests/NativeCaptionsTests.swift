@@ -1,4 +1,5 @@
 import XCTest
+import SwiftData
 import WebKit
 import UIKit
 import AVFoundation
@@ -125,7 +126,7 @@ import AVFoundation
         }
     }
 
-    func testEmbedFullscreenRequestUsesVideoAndFallsBackOnFailure() async throws {
+    func testWebsiteFullscreenRequestReachesWholePlayerWithoutNativeInterception() async throws {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.addUserScript(WKUserScript(source: ScriptSource.read("NativeCaptions"), injectionTime: .atDocumentStart, forMainFrameOnly: false))
         let view = WKWebView(frame: CGRect(x: 0, y: 0, width: 800, height: 600), configuration: configuration)
@@ -133,15 +134,18 @@ import AVFoundation
         let window = try XCTUnwrap(scene.windows.first)
         window.addSubview(view)
         defer { view.stopLoading(); view.removeFromSuperview() }
-        view.loadHTMLString("<media-player id='p' data-media-player><video id='v'></video><button id='f'>Fullscreen</button></media-player>", baseURL: URL(string: "https://strm.cx"))
+        view.loadHTMLString("<media-player id='p' data-media-player><video id='v'></video><div id='caption'>Website subtitle</div><button id='f'>Fullscreen</button></media-player>", baseURL: URL(string: "https://strm.cx"))
         for _ in 0..<450 {
             if let value = try? await view.evaluateJavaScript("!!document.getElementById('f') && typeof irisPrepareNativeCaptions === 'function'"), value as? Bool == true { break }
             try await Task.sleep(for: .milliseconds(100))
         }
         let result = try await view.callAsyncJavaScript("""
             const v = document.getElementById('v'), p = document.getElementById('p'), f = document.getElementById('f');
-            let calls = 0, websiteCalls = 0;
-            p.addEventListener('media-enter-fullscreen-request', () => websiteCalls++);
+            let calls = 0, websiteCalls = 0, requestedContainer = null;
+            p.addEventListener('media-enter-fullscreen-request', event => {
+                websiteCalls++;
+                if (!event.defaultPrevented) requestedContainer = p;
+            });
             Object.defineProperty(v, 'readyState', {configurable:true, value:4});
             v.webkitEnterFullscreen = () => { calls++; };
             const request = () => {
@@ -151,23 +155,65 @@ import AVFoundation
             };
             const activation = navigator.userActivation.isActive;
             request();
-            const direct = calls === 1 && websiteCalls === 0;
-            irisRestoreNativeCaptions(v);
-            v.webkitEnterFullscreen = () => { throw new Error('Fixture rejection'); };
+            const wholePlayer = calls === 0 && websiteCalls === 1 && requestedContainer === p &&
+                requestedContainer.contains(v) && requestedContainer.contains(document.getElementById('caption'));
             request();
-            const fallback = websiteCalls === 1;
-            v.webkitEnterFullscreen = () => { calls++; };
             const extra = document.createElement('video'); p.append(extra);
             request();
-            const ambiguous = calls === 1 && websiteCalls === 2;
+            const ambiguous = calls === 0 && websiteCalls === 3;
             extra.remove();
             Object.defineProperty(v, 'readyState', {configurable:true, value:0});
             request();
-            return {activation, direct, fallback, ambiguous, unloaded: calls === 1 && websiteCalls === 3};
+            return {activation, wholePlayer, ambiguous, unloaded: calls === 0 && websiteCalls === 4};
             """, arguments: [:], in: nil, contentWorld: .page) as? [String: Any]
-        for key in ["activation", "direct", "fallback", "ambiguous", "unloaded"] {
+        for key in ["activation", "wholePlayer", "ambiguous", "unloaded"] {
             XCTAssertEqual(result?[key] as? Bool, true, key)
         }
+    }
+
+    func testContainerFullscreenLeavesWebsiteCaptionRendererUntouched() async throws {
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.addUserScript(WKUserScript(source: ScriptSource.read("NativeCaptions"), injectionTime: .atDocumentStart, forMainFrameOnly: false))
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.loadHTMLString("<media-player id='p' data-media-player data-captions><video id='v'></video><div id='caption'>Website subtitle</div></media-player>", baseURL: URL(string: "https://strm.cx"))
+        for _ in 0..<450 {
+            if let value = try? await view.evaluateJavaScript("!!document.getElementById('caption') && typeof irisPrepareNativeCaptions === 'function'"), value as? Bool == true { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        defer { view.stopLoading() }
+        let result = try await view.evaluateJavaScript("""
+            (() => {
+                const p = document.getElementById('p'), v = document.getElementById('v');
+                let discovery = 0;
+                p.addEventListener('find-media-player', () => discovery++);
+                const source = Object.assign(new EventTarget(), {kind:'subtitles', language:'en', mode:'showing', cues:[new VTTCue(0,100,'Website subtitle')]});
+                p.dispatchEvent(new CustomEvent('text-track-change', {detail:source}));
+                const track = v.addTextTrack('subtitles', 'English', 'en'); track.mode = 'disabled';
+                Object.defineProperty(document, 'fullscreenElement', {configurable:true, value:p});
+                document.dispatchEvent(new Event('fullscreenchange'));
+                v.dispatchEvent(new Event('webkitbeginfullscreen'));
+                source.dispatchEvent(new Event('add-cue'));
+                const intact = discovery === 0 && v.textTracks.length === 1 && track.mode === 'disabled' &&
+                    !v.controls && p.hasAttribute('data-captions') && document.getElementById('caption').textContent === 'Website subtitle';
+                Object.defineProperty(document, 'fullscreenElement', {configurable:true, value:null});
+                document.dispatchEvent(new Event('fullscreenchange'));
+                return intact && discovery === 0 && v.textTracks.length === 1 && source.mode === 'showing';
+            })()
+            """)
+        XCTAssertEqual(result as? Bool, true)
+    }
+
+    func testSharedWebViewFactoryEnablesElementFullscreenInlinePlaybackAndInspection() throws {
+        let settings = SettingsStore(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
+        let coordinator = WebView.Coordinator(model: BrowserModel())
+        let configuration = WKWebViewConfiguration()
+        configuration.allowsInlineMediaPlayback = false
+        configuration.preferences.isElementFullscreenEnabled = false
+        let view = WebView.makeWebView(configuration, coordinator: coordinator, settings: settings)
+        defer { WebView.dismantleUIView(view, coordinator: coordinator) }
+        XCTAssertTrue(view.configuration.allowsInlineMediaPlayback)
+        XCTAssertTrue(view.configuration.preferences.isElementFullscreenEnabled)
+        XCTAssertTrue(view.isInspectable)
     }
 
     func testUnenteredFullscreenCleansUpCopiedCaptions() async throws {
