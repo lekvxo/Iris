@@ -58,6 +58,36 @@ struct WebView: UIViewRepresentable {
                 const report = () => window.webkit?.messageHandlers.irisFullscreen?.postMessage({
                     fullscreen: !!document.fullscreenElement || videos.size > 0
                 });
+                // Diagnostic only: counts and flags, never URLs or subtitle text. Records whether the
+                // website's request kept its whole player (video plus caption layer) or went video-only.
+                const captionLayers = 'media-captions,.vjs-text-track-display,.jw-captions,.plyr__captions,.art-subtitle,[class*="subtitle" i],[class*="caption" i]';
+                const probe = kind => {
+                    const element = document.fullscreenElement;
+                    const visible = node => {
+                        const rect = node.getBoundingClientRect(), style = getComputedStyle(node);
+                        return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+                    };
+                    const layers = element && !(element instanceof HTMLVideoElement) ? [...element.querySelectorAll(captionLayers)] : [];
+                    const all = [...document.querySelectorAll('video')];
+                    window.webkit?.messageHandlers.irisFullscreen?.postMessage({fullscreenProbe: kind,
+                        mainFrame: window === window.top ? 1 : 0,
+                        enabled: document.fullscreenEnabled ? 1 : 0,
+                        element: !element ? 0 : element instanceof HTMLVideoElement ? 1 : element instanceof HTMLIFrameElement ? 2 : 3,
+                        containsVideo: element?.querySelector?.('video') ? 1 : 0,
+                        layers: layers.length,
+                        visibleLayers: layers.filter(visible).length,
+                        textLayers: layers.filter(node => visible(node) && node.textContent.trim().length > 0).length,
+                        videos: all.length,
+                        nativeVideo: all.filter(v => v.webkitDisplayingFullscreen).length,
+                        presentation: all.map(v => v.webkitPresentationMode || '').find(m => m && m !== 'inline') || 'inline'});
+                };
+                document.addEventListener('fullscreenchange', () => {
+                    probe(document.fullscreenElement ? 'enter' : 'exit');
+                    // Sample once after the presentation settles, when captions have had time to redraw.
+                    if (document.fullscreenElement) setTimeout(() => { if (document.fullscreenElement) probe('settled'); }, 1500);
+                });
+                document.addEventListener('fullscreenerror', () => probe('error'));
+                document.addEventListener('webkitbeginfullscreen', () => probe('nativeVideo'), true);
                 document.addEventListener('fullscreenchange', report);
                 document.addEventListener('webkitbeginfullscreen', event => {
                     if (event.target instanceof HTMLVideoElement) { videos.add(event.target); report(); }
@@ -161,6 +191,15 @@ struct WebView: UIViewRepresentable {
                 let renderer = body["renderer"] as? Int ?? 0
                 let nativeControls = body["nativeControls"] as? Int ?? 0
                 NSLog("Iris captions selected event=%ld ready=%ld tracks=%ld showing=%ld hidden=%ld cues=%ld active=%ld custom=%ld selectedCues=%ld renderer=%ld nativeControls=%ld", event, ready, tracks, showing, hidden, cues, active, custom, selected, renderer, nativeControls)
+                return
+            }
+            if message.name == "irisFullscreen", let body = message.body as? [String: Any],
+               let kind = body["fullscreenProbe"] as? String {
+                let value = { (key: String) in body[key] as? Int ?? -1 }
+                NSLog("Iris fullscreen probe kind=%@ mainFrame=%ld enabled=%ld element=%ld containsVideo=%ld layers=%ld visibleLayers=%ld textLayers=%ld videos=%ld nativeVideo=%ld presentation=%@",
+                      String(kind.prefix(16)), value("mainFrame"), value("enabled"), value("element"), value("containsVideo"),
+                      value("layers"), value("visibleLayers"), value("textLayers"), value("videos"), value("nativeVideo"),
+                      String((body["presentation"] as? String ?? "?").prefix(24)))
                 return
             }
             if message.name == "irisFullscreen", let body = message.body as? [String: Any],
@@ -404,6 +443,7 @@ struct WebView: UIViewRepresentable {
                 view.observe(\.fullscreenState, options: [.new]) { [weak self] view, _ in
                     MainActor.assumeIsolated {
                         guard let self else { return }
+                        NSLog("Iris fullscreen probe webViewState=%ld", view.fullscreenState.rawValue)
                         self.model.isWebFullscreen = view.fullscreenState != .notInFullscreen
                         if !self.model.isWebFullscreen { self.model.restoreBrowserWindow() }
                     }
